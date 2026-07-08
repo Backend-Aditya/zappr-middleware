@@ -1,0 +1,78 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://zappr:zappr@postgres:5432/zappr_middleware
+      - REDIS_URL=redis://redis:6379
+      - ZAPPR_MOCK_URL=http://mock-zappr:4001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-zappr:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  mock-zappr:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+      - MOCK_API_KEY=MOCK_ZAPPR_KEY
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:4001/health').then(r=>process.exit(r.ok?0:1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=zappr
+      - POSTGRES_PASSWORD=zappr
+      - POSTGRES_DB=zappr_middleware
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U zappr -d zappr_middleware]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,14 @@
+
+// Prevent env validation from throwing in tests
+process.env.NODE_ENV = 'test'
+process.env.SHOPIFY_STORE = 'test.myshopify.com'
+process.env.SHOPIFY_CLIENT_ID = 'test-client-id'
+process.env.SHOPIFY_CLIENT_SECRET = 'test-client-secret'
+process.env.SHOPIFY_APP_PROXY_SECRET = 'test-proxy-secret'
+process.env.SHOPIFY_WEBHOOK_SECRET = 'test-webhook-secret'
+process.env.ZAPPR_MODE = 'mock'
+process.env.ZAPPR_WEBHOOK_TOKEN = 'test-webhook-token-16chars'
+process.env.ZAPPR_MOCK_URL = 'http://localhost:4001'
+process.env.ZAPPR_MOCK_API_KEY = 'MOCK_ZAPPR_KEY'
+process.env.DATABASE_URL = 'postgresql://zappr:zappr@localhost:5432/zappr_test'
+process.env.REDIS_URL = 'redis://localhost:6379'

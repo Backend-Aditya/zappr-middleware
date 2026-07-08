@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment — contains live credentials, never commit
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PM2
+.pm2/
+
+# Editor
+.vscode/
+.idea/
+
+# Local scratch
+external-endpoints.txt
+zappr-api-request.txt
