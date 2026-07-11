@@ -21,7 +21,8 @@ export function buildRateLimiter(opts = {}) {
         standardHeaders: 'draft-8',
         legacyHeaders: false,
         store: new RedisStore({
-          client: getRedis(),
+          // rate-limit-redis v5 takes a sendCommand fn, not a client instance
+          sendCommand: (...args) => getRedis().call(...args),
           prefix: keyPrefix,
         }),
         // ipKeyGenerator normalizes IPv6 to /56 so one user can't rotate
