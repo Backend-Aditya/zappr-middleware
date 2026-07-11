@@ -12,6 +12,10 @@ export const env = createEnv({
     SHOPIFY_STORE: z.string().min(1),
     SHOPIFY_CLIENT_ID: z.string().min(1),
     SHOPIFY_CLIENT_SECRET: z.string().min(1),
+    // Static Admin API token from a store-admin custom app (Develop apps).
+    // When set, it is used directly and the client credentials grant is skipped —
+    // required for collaborator stores outside the app's organization.
+    SHOPIFY_ADMIN_TOKEN: z.string().optional(),
     SHOPIFY_APP_PROXY_SECRET: z.string().min(1),
     SHOPIFY_WEBHOOK_SECRET: z.string().min(1),
 

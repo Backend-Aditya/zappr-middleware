@@ -45,6 +45,10 @@ async function fetchAccessToken() {
  * @returns {Promise<string>}
  */
 export async function getAccessToken() {
+  // Static admin-app token (Settings → Develop apps) — used for collaborator
+  // stores where the client credentials grant is not permitted (different org).
+  if (env.SHOPIFY_ADMIN_TOKEN) return env.SHOPIFY_ADMIN_TOKEN
+
   const redis = getRedis()
 
   const cached = await redis.get(CACHE_KEY)

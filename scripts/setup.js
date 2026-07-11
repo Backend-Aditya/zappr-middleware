@@ -17,6 +17,10 @@ if (!NGROK_URL) {
 }
 
 async function getToken() {
+  // Static admin-app token takes precedence (collaborator stores can't use
+  // the client credentials grant — see src/shopify/tokenService.js).
+  if (process.env.SHOPIFY_ADMIN_TOKEN) return process.env.SHOPIFY_ADMIN_TOKEN
+
   const res = await ky.post(`https://${STORE}/admin/oauth/access_token`, {
     json: { client_id: CLIENT_ID, client_secret: CLIENT_SECRET, grant_type: 'client_credentials' },
   }).json()
