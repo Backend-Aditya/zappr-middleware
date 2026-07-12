@@ -21,7 +21,8 @@ async function logToDb(entry) {
  */
 export function buildZapprClient(baseUrl, apiKey, xApiKey) {
   return ky.create({
-    prefixUrl: baseUrl,
+    // ky v2 renamed prefixUrl → baseUrl
+    baseUrl,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       ...(xApiKey ? { 'x-api-key': xApiKey } : {}),
