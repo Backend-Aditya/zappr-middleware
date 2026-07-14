@@ -47,6 +47,8 @@ export const env = createEnv({
     REDIS_URL: z.string().url(),
 
     // App
+    // Status dashboard auth (/admin) — falls back to ZAPPR_WEBHOOK_TOKEN when unset
+    ADMIN_TOKEN: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
     ZAPPR_STOCK_TTL_SECONDS: z.coerce.number().int().positive().default(120),
   },
