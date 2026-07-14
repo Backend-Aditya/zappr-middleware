@@ -19,19 +19,21 @@ router.get('/getInventoryDetailsV3', async (req, res) => {
 
   // 10% random stock-unavailable, matching real-world flakiness
   if (!item || Math.random() < 0.10) {
-    return res.json({ status: true, data: [] })
+    return res.json({ status: true, data: { inventoryData: [] } })
   }
 
   return res.json({
     status: true,
-    data: [
-      {
-        sku: String(sku),
-        productName: item.name,
-        locationId: 'ee73171873009',
-        availableQuantity: item.stock,
-      },
-    ],
+    data: {
+      inventoryData: [
+        {
+          sku: String(sku),
+          productName: item.name,
+          location_key: 'ee73171873009',
+          availableInventory: item.stock,
+        },
+      ],
+    },
   })
 })
 

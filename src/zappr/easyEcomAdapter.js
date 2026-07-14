@@ -28,9 +28,13 @@ export function buildEasyEcomAdapter(client) {
           },
         }).json()
 
-        const rows = Array.isArray(res?.data) ? res.data : []
+        // Real API nests rows under data.inventoryData; tolerate a bare
+        // data[] array too (older shape used by fixtures/mock).
+        const rows = Array.isArray(res?.data?.inventoryData)
+          ? res.data.inventoryData
+          : Array.isArray(res?.data) ? res.data : []
         const quantity = rows.reduce(
-          (sum, row) => sum + Number(row.availableQuantity ?? row.available_quantity ?? row.quantity ?? 0),
+          (sum, row) => sum + Number(row.availableInventory ?? row.availableQuantity ?? row.available_quantity ?? row.quantity ?? 0),
           0,
         )
 
