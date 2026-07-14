@@ -36,14 +36,15 @@ export function buildZapprClient(baseUrl, apiKey, xApiKey) {
       statusCodes: [408, 429, 503],
       backoffLimit: 5000,
     },
+    // ky v2 hooks receive a single state object ({ request, options, response })
     hooks: {
       beforeRequest: [
-        (request) => {
+        ({ request }) => {
           request._startTime = Date.now()
         },
       ],
       afterResponse: [
-        (request, _options, response) => {
+        ({ request, response }) => {
           const latencyMs = Date.now() - (request._startTime ?? Date.now())
           logToDb({
             direction: 'outbound',
