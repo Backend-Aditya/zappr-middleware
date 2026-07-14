@@ -15,6 +15,16 @@ router.post('/webhook/v2/createOrder', async (req, res) => {
     return res.status(400).json({ status: false, message: 'orderNumber and items required' })
   }
 
+  // Real EasyEcom rejects items without Price via HTTP 200 + code 400
+  const missingPrice = items.filter((i) => i.Price == null || i.Price === '')
+  if (missingPrice.length) {
+    return res.status(200).json({
+      code: 400,
+      message: 'Error creating order',
+      data: missingPrice.map((i) => ({ ...i, Price: 0, Message: ' Mandatory parameter missing ' })),
+    })
+  }
+
   const invoiceId = nextInvoiceIdValue()
 
   orderStore.set(orderNumber, {
@@ -29,10 +39,17 @@ router.post('/webhook/v2/createOrder', async (req, res) => {
   })
   invoiceIndex.set(invoiceId, orderNumber)
 
+  // Mirrors real response: code/message plus EasyEcom's own IDs
   return res.status(200).json({
-    status: true,
-    message: 'Order created successfully',
-    data: { orderNumber, invoiceId },
+    code: 200,
+    message: `${orderNumber} created successfully`,
+    data: {
+      Status: 200,
+      Message: `Success SuborderID:${invoiceId}1 OrderID:${invoiceId}2 InvoiceID:${invoiceId}`,
+      SuborderID: `${invoiceId}1`,
+      OrderID: `${invoiceId}2`,
+      InvoiceID: String(invoiceId),
+    },
   })
 })
 

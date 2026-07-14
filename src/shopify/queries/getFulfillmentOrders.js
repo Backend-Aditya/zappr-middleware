@@ -14,6 +14,7 @@ export const GET_FULFILLMENT_ORDERS = /* GraphQL */ `
               sku
               variant {
                 id
+                price
                 metafield(namespace: "custom", key: "zappr_eligible") {
                   value
                 }

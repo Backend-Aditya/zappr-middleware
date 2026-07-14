@@ -73,6 +73,8 @@ export function buildEasyEcomAdapter(client) {
             Sku: item.zapprSku,
             productName: item.zapprSku,
             Quantity: String(item.quantity),
+            // Price is mandatory — EasyEcom rejects the order without it
+            Price: String(item.price ?? '1'),
           })),
           customer: [{
             shipping: {
@@ -91,14 +93,24 @@ export function buildEasyEcomAdapter(client) {
 
         const res = await client().post('webhook/v2/createOrder', { json: body }).json()
 
-        // EasyEcom can return HTTP 200 with a failure body
-        if (res?.status === false) {
-          throw new Error(res?.message ?? 'EasyEcom rejected the order')
+        // EasyEcom can return HTTP 200 with a failure body: either
+        // { status: false } or { code: 400, data: [{ Message }] }
+        if (res?.status === false || Number(res?.code) >= 400) {
+          const itemErrors = Array.isArray(res?.data)
+            ? res.data.map((d) => d?.Message).filter(Boolean).join('; ')
+            : ''
+          throw new Error([res?.message ?? 'EasyEcom rejected the order', itemErrors].filter(Boolean).join(' — '))
         }
 
         // EasyEcom keys tracking/cancel/detail lookups off the reference_code we
         // supply (orderNumber), not a value it returns — so that's our zapprOrderId.
-        return { zapprOrderId: shopifyReference, estimatedDelivery: null }
+        // Its own IDs are kept as metadata for support lookups.
+        return {
+          zapprOrderId: shopifyReference,
+          estimatedDelivery: null,
+          easyEcomOrderId: res?.data?.OrderID ?? null,
+          invoiceId: res?.data?.InvoiceID ?? null,
+        }
       } catch (err) {
         throw new ZapprApiError(`Create order failed: ${err.message}`)
       }

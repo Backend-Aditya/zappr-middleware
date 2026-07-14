@@ -40,6 +40,7 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
     zapprSku: li.sku,
     quantity: li.remainingQuantity,
     variantId: li.variant?.id,
+    price: li.variant?.price,
     zapprEligible: li.variant?.metafield?.value === 'true',
   }))
 
@@ -60,7 +61,7 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
     }
   }
 
-  const zapprItems = items.map((i) => ({ zapprSku: i.zapprSku, quantity: i.quantity }))
+  const zapprItems = items.map((i) => ({ zapprSku: i.zapprSku, quantity: i.quantity, price: i.price }))
 
   // FulfillmentOrderDestination has firstName/lastName/countryCode;
   // the adapter's address contract expects name/country
@@ -70,7 +71,7 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
     country: destination?.countryCode === 'IN' ? 'India' : destination?.countryCode ?? 'India',
   }
 
-  const { zapprOrderId, estimatedDelivery } = await adapter.createOrder({
+  const { zapprOrderId, estimatedDelivery, easyEcomOrderId, invoiceId } = await adapter.createOrder({
     items: zapprItems,
     pincode,
     slot,
@@ -86,7 +87,7 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
       slot,
       pincode,
       surchargeAmount: String(surcharge),
-      metadata: { estimatedDelivery },
+      metadata: { estimatedDelivery, easyEcomOrderId, invoiceId },
     })
     .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
 
