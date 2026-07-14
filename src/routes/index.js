@@ -5,7 +5,7 @@ import carrierRouter from './carrier.js'
 import webhooksRouter from './webhooks.js'
 import zapprWebhookRouter from './zapprWebhook.js'
 import adminRouter from './admin.js'
-import demoRouter from './demo.js'
+import homeRouter from './home.js'
 
 const router = Router()
 
@@ -15,6 +15,6 @@ router.use('/carrier', carrierRouter)
 router.use('/webhooks', webhooksRouter)
 router.use('/webhooks/zappr', zapprWebhookRouter)
 router.use('/admin', adminRouter)
-router.use('/demo', demoRouter)
+router.use('/', homeRouter)
 
 export default router
