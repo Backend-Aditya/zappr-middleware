@@ -41,7 +41,8 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
     quantity: li.remainingQuantity,
     variantId: li.variant?.id,
     price: li.variant?.price,
-    zapprEligible: li.variant?.metafield?.value === 'true',
+    // Variant metafield wins; falls back to the product-level flag
+    zapprEligible: (li.variant?.metafield?.value ?? li.variant?.product?.metafield?.value) === 'true',
   }))
 
   const { slot, surcharge } = computeSurcharge()

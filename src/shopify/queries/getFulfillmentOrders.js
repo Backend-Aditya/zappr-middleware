@@ -18,6 +18,11 @@ export const GET_FULFILLMENT_ORDERS = /* GraphQL */ `
                 metafield(namespace: "custom", key: "zappr_eligible") {
                   value
                 }
+                product {
+                  metafield(namespace: "custom", key: "zappr_eligible") {
+                    value
+                  }
+                }
               }
             }
           }
