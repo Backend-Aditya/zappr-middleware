@@ -14,7 +14,7 @@ export function computeSurcharge(at) {
   const { slot } = determineSlot(at)
   return {
     slot,
-    surcharge: env.ZAPPR_SURCHARGE_AMOUNT,
+    surcharge: env.ZAPPR_SURCHARGE_ENABLED ? env.ZAPPR_SURCHARGE_AMOUNT : 0,
     deliveryPromise: deliveryPromiseText(slot),
   }
 }

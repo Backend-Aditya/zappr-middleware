@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../../src/config/env.js', () => ({
   env: {
+    ZAPPR_SURCHARGE_ENABLED: true,
     ZAPPR_SURCHARGE_AMOUNT: 49,
     ZAPPR_HOLIDAYS: [],
   },
@@ -41,7 +42,8 @@ describe('computeSurcharge with holidays', () => {
     vi.resetModules()
     vi.doMock('../../src/config/env.js', () => ({
       env: {
-        ZAPPR_SURCHARGE_AMOUNT: 49,
+        ZAPPR_SURCHARGE_ENABLED: true,
+    ZAPPR_SURCHARGE_AMOUNT: 49,
         ZAPPR_HOLIDAYS: ['2026-06-27'],
       },
     }))

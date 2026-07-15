@@ -32,6 +32,11 @@ export const env = createEnv({
     ZAPPR_MOCK_URL: z.string().url().default('http://localhost:4001'),
     ZAPPR_MOCK_API_KEY: z.string().default('MOCK_ZAPPR_KEY'),
     ZAPPR_MOCK_X_API_KEY: z.string().default('MOCK_ZAPPR_X_API_KEY'),
+    // Master switch for the quick-delivery surcharge; amount ignored when off
+    ZAPPR_SURCHARGE_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
     ZAPPR_SURCHARGE_AMOUNT: z.coerce.number().int().positive().default(49),
     ZAPPR_HOLIDAYS: z
       .string()

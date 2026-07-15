@@ -23,6 +23,7 @@ vi.mock('../../src/middleware/rateLimiter.js', () => ({
 
 vi.mock('../../src/config/env.js', () => ({
   env: {
+    ZAPPR_SURCHARGE_ENABLED: true,
     ZAPPR_SURCHARGE_AMOUNT: 49,
     ZAPPR_HOLIDAYS: [],
     SHOPIFY_WEBHOOK_SECRET: 'test-webhook-secret',
