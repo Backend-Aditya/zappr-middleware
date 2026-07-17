@@ -8,6 +8,7 @@ export const ORDER_STATUS = /** @type {const} */ ({
   FULFILLED: 'FULFILLED',
   FAILED: 'FAILED',
   FALLBACK: 'FALLBACK',
+  CANCELLED: 'CANCELLED',
 })
 
 export const DELIVERY_SLOT = /** @type {const} */ ({

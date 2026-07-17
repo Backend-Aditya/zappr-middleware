@@ -37,7 +37,7 @@ export function createApp() {
   // JSON body parser for all non-raw routes
   app.use((req, res, next) => {
     // Skip for routes that need raw body (HMAC verified against exact bytes)
-    if (req.path === '/webhooks/orders-paid' || req.path === '/carrier') {
+    if (req.path === '/webhooks/orders-paid' || req.path === '/webhooks/orders-cancelled' || req.path === '/carrier') {
       return next()
     }
     express.json({ limit: BODY_LIMIT })(req, res, next)

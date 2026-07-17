@@ -4,6 +4,8 @@ import { shopifyHmacMiddleware } from '../middleware/shopifyHmac.js'
 import { orderMappings, webhookEvents } from '../db/postgres/schema.js'
 import { getDb } from '../db/postgres/connection.js'
 import { orderPushQueue } from '../queue/queues.js'
+import { getAdapter } from '../zappr/adapter.js'
+import { ORDER_STATUS } from '../config/constants.js'
 import { createLogger } from '../utils/logger.js'
 
 const router = Router()
@@ -62,6 +64,38 @@ router.post(
 
       throw err
     }
+  },
+)
+
+router.post(
+  '/orders-cancelled',
+  express.raw({ type: 'application/json', limit: '2mb' }),
+  shopifyHmacMiddleware,
+  async (req, res) => {
+    const shopifyOrderId = String(req.body.id)
+    const db = getDb()
+
+    const [mapping] = await db.select()
+      .from(orderMappings)
+      .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+      .limit(1)
+
+    // Only orders actually sitting at Zappr need a remote cancel; the status
+    // guard also makes Shopify's webhook retries idempotent.
+    if (!mapping || !mapping.zapprOrderId || mapping.status !== ORDER_STATUS.PUSHED) {
+      log.info({ shopifyOrderId, status: mapping?.status }, 'Cancel webhook — nothing to cancel at Zappr')
+      return res.status(200).json({ ok: true, skipped: true })
+    }
+
+    const adapter = await getAdapter()
+    await adapter.cancelOrder({ zapprOrderId: mapping.zapprOrderId })
+
+    await db.update(orderMappings)
+      .set({ status: ORDER_STATUS.CANCELLED })
+      .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+
+    log.info({ shopifyOrderId, zapprOrderId: mapping.zapprOrderId }, 'Order cancelled at Zappr')
+    return res.status(200).json({ ok: true })
   },
 )
 

@@ -20,6 +20,7 @@ const log = createLogger('availability-service')
  * @property {string | null} deliveryPromise
  * @property {number} surcharge
  * @property {string | null} reason
+ * @property {number | null} availableQuantity - Zappr stock on hand; null when the check never reached stock
  */
 
 /**
@@ -33,7 +34,8 @@ const log = createLogger('availability-service')
 export async function checkAvailability(input, adapter) {
   const { pincode, quantity, zapprSku, zapprEligible } = input
 
-  const unavailable = (reason) => ({ available: false, slot: null, deliveryPromise: null, surcharge: 0, reason })
+  const unavailable = (reason, availableQuantity = null) =>
+    ({ available: false, slot: null, deliveryPromise: null, surcharge: 0, reason, availableQuantity })
 
   // Check 1: variant must be Zappr-eligible (from metafield, no API call)
   if (!zapprEligible) {
@@ -47,6 +49,7 @@ export async function checkAvailability(input, adapter) {
   }
 
   // Check 3: stock check (Redis cache → Zappr API)
+  let stockQuantity
   try {
     let stock = await getCachedStock(zapprSku)
 
@@ -55,8 +58,12 @@ export async function checkAvailability(input, adapter) {
       await setCachedStock(zapprSku, stock)
     }
 
+    stockQuantity = stock.quantity
+
     if (!stock.available || stock.quantity < quantity) {
-      return unavailable(AVAILABILITY_REASON.OUT_OF_STOCK)
+      // Quantity is surfaced so the storefront can say "only N left for
+      // quick delivery — larger orders ship with standard delivery"
+      return unavailable(AVAILABILITY_REASON.OUT_OF_STOCK, stock.quantity)
     }
   } catch (err) {
     log.error({ err, zapprSku }, 'Stock check failed — degrading gracefully')
@@ -64,5 +71,5 @@ export async function checkAvailability(input, adapter) {
   }
 
   const { slot, surcharge, deliveryPromise } = computeSurcharge()
-  return { available: true, slot, deliveryPromise, surcharge, reason: null }
+  return { available: true, slot, deliveryPromise, surcharge, reason: null, availableQuantity: stockQuantity }
 }
