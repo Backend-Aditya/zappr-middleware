@@ -126,12 +126,18 @@ export function buildEasyEcomAdapter(client) {
           searchParams: { reference_code: zapprOrderId },
         }).json()
 
-        const data = Array.isArray(res) ? res[0] : (res?.data ?? res)
+        // Real response is { code, message, data: [ {...} ] } — data is an
+        // array even for a single order. Tolerate a bare array/object too.
+        const row = Array.isArray(res?.data)
+          ? res.data[0]
+          : Array.isArray(res)
+            ? res[0]
+            : (res?.data ?? res)
 
         return {
-          status: data?.orderStatus ?? data?.currentShippingStatus ?? 'PENDING',
-          trackingNumber: data?.awbNumber != null ? String(data.awbNumber) : null,
-          trackingUrl: data?.trackingUrl ?? null,
+          status: row?.orderStatus ?? row?.currentShippingStatus ?? 'PENDING',
+          trackingNumber: row?.awbNumber != null ? String(row.awbNumber) : null,
+          trackingUrl: row?.trackingUrl ?? null,
         }
       } catch (err) {
         throw new ZapprApiError(`Get tracking failed: ${err.message}`)
