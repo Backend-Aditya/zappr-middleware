@@ -3,6 +3,7 @@ import { desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { env } from '../config/env.js'
 import { getDb } from '../db/postgres/connection.js'
 import { orderMappings, trackingUpdates, webhookEvents, zapprLogs } from '../db/postgres/schema.js'
+import { trackingPollQueue } from '../queue/queues.js'
 import { safeCompare } from '../utils/crypto.js'
 import { HmacError } from '../errors.js'
 
@@ -70,6 +71,16 @@ router.get('/api/order', adminAuth, async (req, res) => {
     .limit(20)
 
   res.json({ mapping, tracking })
+})
+
+// Manually kick tracking polling for an order — e.g. after a job hit its
+// retry ceiling during an upstream outage and stopped requeuing itself.
+router.post('/api/requeue-tracking', adminAuth, async (req, res) => {
+  const zapprOrderId = String(req.body?.zapprOrderId ?? req.query.zapprOrderId ?? '').trim()
+  if (!zapprOrderId) return res.status(400).json({ error: 'zapprOrderId required' })
+
+  await trackingPollQueue.add('poll', { zapprOrderId, pollCount: 0 }, { delay: 0 })
+  res.json({ ok: true, zapprOrderId })
 })
 
 const PAGE = /* html */ `<!doctype html>
