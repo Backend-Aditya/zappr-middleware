@@ -6,12 +6,31 @@ import { checkAvailability } from './availabilityService.js'
 import { computeSurcharge } from './surchargeService.js'
 import { invalidateStock } from '../cache/stockCache.js'
 import { trackingPollQueue } from '../queue/queues.js'
-import { ORDER_STATUS } from '../config/constants.js'
+import { ORDER_STATUS, AVAILABILITY_REASON } from '../config/constants.js'
+import { acquireLock } from '../utils/lock.js'
+import { ZapprApiError } from '../errors.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('order-service')
 
 const TRACKING_POLL_INITIAL_DELAY_MS = 5 * 60 * 1000
+
+// EasyEcom has no atomic stock-reservation API, so two concurrent pushes for
+// the same SKU could both pass a plain check-then-act read. Serializing
+// pushes per SKU (lock held across the fresh stock check AND the createOrder
+// call) closes that window — only one push at a time can decide "this SKU
+// has enough stock" for a given SKU.
+const SKU_LOCK_TTL_MS = 20_000
+const SKU_LOCK_WAIT_MS = 15_000
+
+// EasyEcom's failure text for a genuine stock shortfall isn't documented/
+// stable, so this is a best-effort heuristic — anything matching gets routed
+// to FALLBACK (safe: order ships normally) instead of endless FAILED retries.
+const STOCK_REJECTION_PATTERN = /stock|quantity|insufficient|unavailable/i
+
+function isStockRejection(err) {
+  return err instanceof ZapprApiError && STOCK_REJECTION_PATTERN.test(err.message)
+}
 
 /**
  * Full Zappr order push flow. Called from BullMQ worker.
@@ -72,36 +91,80 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
     country: destination?.countryCode === 'IN' ? 'India' : destination?.countryCode ?? 'India',
   }
 
-  const { zapprOrderId, estimatedDelivery, easyEcomOrderId, invoiceId } = await adapter.createOrder({
-    items: zapprItems,
-    pincode,
-    slot,
-    address,
-    shopifyReference: shopifyOrderId,
-  })
+  // Sort SKUs before locking so two orders sharing SKUs always acquire locks
+  // in the same order (avoids A-waits-for-B-waits-for-A deadlocks).
+  const uniqueSkus = [...new Set(zapprItems.map((i) => i.zapprSku))].sort()
+  const releases = []
 
-  await db.update(orderMappings)
-    .set({
-      zapprOrderId,
-      fulfillmentOrderId: fo.id,
-      status: ORDER_STATUS.PUSHED,
-      slot,
-      pincode,
-      surchargeAmount: String(surcharge),
-      metadata: { estimatedDelivery, easyEcomOrderId, invoiceId },
-    })
-    .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+  try {
+    for (const sku of uniqueSkus) {
+      releases.push(await acquireLock(`lock:sku:${sku}`, { ttlMs: SKU_LOCK_TTL_MS, waitMs: SKU_LOCK_WAIT_MS }))
+    }
 
-  // Invalidate stock cache for all pushed SKUs
-  await Promise.all(items.map((i) => invalidateStock(i.zapprSku)))
+    // Bypass the availability cache here — the whole point of the lock is to
+    // make a decision on live numbers, not on a read that another concurrent
+    // push already invalidated.
+    for (const item of zapprItems) {
+      const stock = await adapter.checkStock({ zapprSku: item.zapprSku, quantity: item.quantity })
+      if (!stock.available || stock.quantity < item.quantity) {
+        log.warn(
+          { shopifyOrderId, zapprSku: item.zapprSku, requested: item.quantity, inStock: stock.quantity },
+          'Stock claimed by a concurrent order — setting FALLBACK',
+        )
+        await db.update(orderMappings)
+          .set({ status: ORDER_STATUS.FALLBACK, metadata: { reason: AVAILABILITY_REASON.OUT_OF_STOCK } })
+          .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+        return
+      }
+    }
 
-  // Kick off tracking polls — Zappr also pushes webhooks, but polling is the
-  // fallback so tracking still syncs if their webhook is never configured/fails.
-  await trackingPollQueue.add(
-    'poll',
-    { zapprOrderId },
-    { delay: TRACKING_POLL_INITIAL_DELAY_MS, jobId: `poll-${zapprOrderId}` },
-  )
+    let created
+    try {
+      created = await adapter.createOrder({
+        items: zapprItems,
+        pincode,
+        slot,
+        address,
+        shopifyReference: shopifyOrderId,
+      })
+    } catch (err) {
+      if (isStockRejection(err)) {
+        log.warn({ err, shopifyOrderId }, 'Zappr rejected order for stock — setting FALLBACK')
+        await db.update(orderMappings)
+          .set({ status: ORDER_STATUS.FALLBACK, metadata: { reason: AVAILABILITY_REASON.OUT_OF_STOCK } })
+          .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+        return
+      }
+      throw err
+    }
 
-  log.info({ shopifyOrderId, zapprOrderId, slot }, 'Order pushed to Zappr')
+    const { zapprOrderId, estimatedDelivery, easyEcomOrderId, invoiceId } = created
+
+    await db.update(orderMappings)
+      .set({
+        zapprOrderId,
+        fulfillmentOrderId: fo.id,
+        status: ORDER_STATUS.PUSHED,
+        slot,
+        pincode,
+        surchargeAmount: String(surcharge),
+        metadata: { estimatedDelivery, easyEcomOrderId, invoiceId },
+      })
+      .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+
+    // Invalidate stock cache for all pushed SKUs
+    await Promise.all(items.map((i) => invalidateStock(i.zapprSku)))
+
+    // Kick off tracking polls — Zappr also pushes webhooks, but polling is the
+    // fallback so tracking still syncs if their webhook is never configured/fails.
+    await trackingPollQueue.add(
+      'poll',
+      { zapprOrderId },
+      { delay: TRACKING_POLL_INITIAL_DELAY_MS, jobId: `poll-${zapprOrderId}` },
+    )
+
+    log.info({ shopifyOrderId, zapprOrderId, slot }, 'Order pushed to Zappr')
+  } finally {
+    await Promise.all(releases.map((release) => release()))
+  }
 }
