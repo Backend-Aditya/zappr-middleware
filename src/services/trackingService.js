@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { getDb } from '../db/postgres/connection.js'
 import { trackingUpdates, orderMappings } from '../db/postgres/schema.js'
 import { createFulfillment, updateFulfillmentTracking } from '../shopify/fulfillment.js'
@@ -18,6 +18,20 @@ const log = createLogger('tracking-service')
 export async function processTrackingUpdate(update) {
   const { zapprOrderId, status, trackingNumber, trackingUrl, rawPayload } = update
   const db = getDb()
+
+  // Polling runs every 5 minutes regardless of whether Zappr's status moved —
+  // without this guard, an unchanged status re-syncs to Shopify and re-sends
+  // the customer a "shipping update" email on every single poll.
+  const [previous] = await db.select()
+    .from(trackingUpdates)
+    .where(eq(trackingUpdates.zapprOrderId, zapprOrderId))
+    .orderBy(desc(trackingUpdates.createdAt))
+    .limit(1)
+
+  if (previous && previous.status === status && previous.trackingNumber === trackingNumber) {
+    log.info({ zapprOrderId, status }, 'No change since last update — skipping')
+    return
+  }
 
   const [inserted] = await db.insert(trackingUpdates).values({
     zapprOrderId,
