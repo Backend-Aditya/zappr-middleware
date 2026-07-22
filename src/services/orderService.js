@@ -35,13 +35,18 @@ function isStockRejection(err) {
 /**
  * Full Zappr order push flow. Called from BullMQ worker.
  *
- * @param {{ shopifyOrderId: string }} opts
+ * @param {{ shopifyOrderId: string, shopifyOrderName?: string }} opts
  * @param {import('../zappr/adapter.js').ZapprAdapter} adapter
  * @returns {Promise<void>}
  */
-export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
+export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, adapter) {
   const db = getDb()
   const shopifyGid = `gid://shopify/Order/${shopifyOrderId}`
+
+  // Use Shopify's human-readable order name (e.g. "DON119947") as the
+  // reference sent to Zappr, so both systems show the same order reference —
+  // falls back to the numeric ID only if the name is ever missing.
+  const zapprReference = (shopifyOrderName || shopifyOrderId).replace(/^#/, '')
 
   const orderData = await getFulfillmentOrders(shopifyGid)
   const fulfillmentOrders = orderData.order?.fulfillmentOrders?.nodes ?? []
@@ -125,7 +130,7 @@ export async function pushOrderToZappr({ shopifyOrderId }, adapter) {
         pincode,
         slot,
         address,
-        shopifyReference: shopifyOrderId,
+        shopifyReference: zapprReference,
       })
     } catch (err) {
       if (isStockRejection(err)) {

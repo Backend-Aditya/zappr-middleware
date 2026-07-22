@@ -147,6 +147,43 @@ describe('pushOrderToZappr — concurrent pushes for the same SKU', () => {
   })
 })
 
+describe('pushOrderToZappr — Zappr order reference', () => {
+  it('uses the Shopify order name (not the numeric ID) as the reference sent to Zappr', async () => {
+    getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('3001', 'SKU-4', 1))
+
+    let capturedReference
+    const adapter = makeAdapter({
+      stockBySku: { 'SKU-4': { available: true, quantity: 5 } },
+      createOrderImpl: async ({ shopifyReference }) => {
+        capturedReference = shopifyReference
+        return { zapprOrderId: shopifyReference, estimatedDelivery: null, easyEcomOrderId: '1', invoiceId: '1' }
+      },
+    })
+
+    await pushOrderToZappr({ shopifyOrderId: '3001', shopifyOrderName: '#DON119947' }, adapter)
+
+    expect(capturedReference).toBe('DON119947')
+    expect(dbState.updates[0].zapprOrderId).toBe('DON119947')
+  })
+
+  it('falls back to the numeric Shopify order ID when no order name is given', async () => {
+    getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('3002', 'SKU-5', 1))
+
+    let capturedReference
+    const adapter = makeAdapter({
+      stockBySku: { 'SKU-5': { available: true, quantity: 5 } },
+      createOrderImpl: async ({ shopifyReference }) => {
+        capturedReference = shopifyReference
+        return { zapprOrderId: shopifyReference, estimatedDelivery: null, easyEcomOrderId: '1', invoiceId: '1' }
+      },
+    })
+
+    await pushOrderToZappr({ shopifyOrderId: '3002' }, adapter)
+
+    expect(capturedReference).toBe('3002')
+  })
+})
+
 describe('pushOrderToZappr — EasyEcom stock rejection at createOrder time', () => {
   it('routes to FALLBACK instead of throwing (no endless retry loop)', async () => {
     getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('2001', 'SKU-2', 1))
