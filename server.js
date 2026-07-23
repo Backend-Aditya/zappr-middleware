@@ -18,7 +18,7 @@ async function boot() {
   const app = createApp()
 
   const server = app.listen(env.PORT, () => {
-    logger.info({ port: env.PORT, mode: env.ZAPPR_MODE }, 'HTTP server listening')
+    logger.info({ port: env.PORT }, 'HTTP server listening')
   })
 
   let shuttingDown = false

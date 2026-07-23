@@ -19,19 +19,15 @@ export const env = createEnv({
     SHOPIFY_APP_PROXY_SECRET: z.string().min(1),
     SHOPIFY_WEBHOOK_SECRET: z.string().min(1),
 
-    // Zappr — backed by EasyEcom's API in live mode
-    ZAPPR_MODE: z.enum(['mock', 'live']).default('mock'),
-    ZAPPR_BASE_URL: z.string().url().optional(),
-    ZAPPR_API_KEY: z.string().optional(), // JWT bearer token (rotated manually by Zappr, ~90 day validity)
-    ZAPPR_X_API_KEY: z.string().optional(), // EasyEcom x-api-key header, mandatory alongside the bearer token
+    // Zappr — backed by EasyEcom's API
+    ZAPPR_BASE_URL: z.string().url(),
+    ZAPPR_API_KEY: z.string().min(1), // JWT bearer token (rotated manually by Zappr, ~90 day validity)
+    ZAPPR_X_API_KEY: z.string().min(1), // EasyEcom x-api-key header, mandatory alongside the bearer token
     ZAPPR_MARKETPLACE_ID: z.coerce.number().int().positive().default(10),
     // Shared secret in the webhook URL we give the Zappr team
     // (e.g. /webhooks/zappr/tracking?token=...) — EasyEcom does not sign webhooks
     ZAPPR_WEBHOOK_TOKEN: z.string().min(16),
     ZAPPR_CARRIER_ID: z.coerce.number().int().positive().optional(),
-    ZAPPR_MOCK_URL: z.string().url().default('http://localhost:4001'),
-    ZAPPR_MOCK_API_KEY: z.string().default('MOCK_ZAPPR_KEY'),
-    ZAPPR_MOCK_X_API_KEY: z.string().default('MOCK_ZAPPR_X_API_KEY'),
     // Master switch for the quick-delivery surcharge; amount ignored when off
     ZAPPR_SURCHARGE_ENABLED: z
       .enum(['true', 'false'])

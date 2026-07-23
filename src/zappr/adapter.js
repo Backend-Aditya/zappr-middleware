@@ -1,5 +1,3 @@
-import { env } from '../config/env.js'
-
 /**
  * @typedef {{ available: boolean, quantity: number }} StockResult
  * @typedef {{ serviceable: boolean }} PincodeResult
@@ -20,19 +18,14 @@ import { env } from '../config/env.js'
 let _adapter = null
 
 /**
- * Lazily load and return the active adapter based on ZAPPR_MODE env var.
+ * Lazily load and return the EasyEcom-backed adapter.
  * @returns {Promise<ZapprAdapter>}
  */
 export async function getAdapter() {
   if (_adapter) return _adapter
 
-  if (env.ZAPPR_MODE === 'mock') {
-    const { mockAdapter } = await import('./mockAdapter.js')
-    _adapter = mockAdapter
-  } else {
-    const { realAdapter } = await import('./realAdapter.js')
-    _adapter = realAdapter
-  }
+  const { realAdapter } = await import('./realAdapter.js')
+  _adapter = realAdapter
 
   return _adapter
 }

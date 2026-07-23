@@ -41,7 +41,7 @@ Production-grade Shopify ↔ Zappr delivery integration for Unived.
                                │
                                ▼
               ┌─────────────────────────────┐
-              │   Zappr API (mock or live)   │
+              │        Zappr API (live)       │
               │   POST /api/v1/stock/check   │
               │   POST /api/v1/pincode/check │
               │   POST /api/v1/orders        │
@@ -73,24 +73,10 @@ npm run migrate
 # Development (watch mode)
 npm run dev
 npm run dev:worker    # in another terminal
-npm run dev:mock      # mock Zappr server (auto-started by docker-compose)
 
 # Production
 npm start             # PM2 cluster mode
 ```
-
-## Switch from Mock to Live Zappr
-
-One env var change, zero code changes:
-
-```env
-# .env
-ZAPPR_MODE=live
-ZAPPR_BASE_URL=https://api.zappr.in
-ZAPPR_API_KEY=your-real-key
-```
-
-The adapter pattern in `src/zappr/adapter.js` lazy-loads `mockAdapter` or `realAdapter` at boot based on `ZAPPR_MODE`.
 
 ## API Endpoints
 

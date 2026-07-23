@@ -34,18 +34,4 @@ const apps = [
   },
 ]
 
-// In mock mode the mock Zappr server must run alongside the app so
-// ZAPPR_MOCK_URL=http://localhost:4001 resolves inside the same host/container.
-if (process.env.ZAPPR_MODE !== 'live') {
-  apps.push({
-    name: 'zappr-mock-server',
-    script: 'mock-zappr-server/server.js',
-    instances: 1,
-    exec_mode: 'fork',
-    // Pin the port: hosts like Render inject PORT for the web process,
-    // and the mock server must not bind the same port as the main app.
-    env: { PORT: 4001 },
-  })
-}
-
 module.exports = { apps }

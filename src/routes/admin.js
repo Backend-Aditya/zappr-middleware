@@ -45,7 +45,7 @@ router.get('/api/overview', adminAuth, async (_req, res) => {
       .limit(20),
   ])
 
-  res.json({ mode: env.ZAPPR_MODE, statusCounts, orders, webhooks, logs })
+  res.json({ statusCounts, orders, webhooks, logs })
 })
 
 router.get('/api/order', adminAuth, async (req, res) => {
@@ -114,7 +114,7 @@ const PAGE = /* html */ `<!doctype html>
 </style>
 </head>
 <body>
-<h1>Zappr Middleware <span id="mode" class="dim"></span></h1>
+<h1>Zappr Middleware</h1>
 <div class="bar">
   <input id="token" type="password" placeholder="admin token" size="24">
   <button onclick="saveToken()">Connect</button>
@@ -149,7 +149,6 @@ async function load() {
   $('msg').textContent = ''
   try {
     const d = await api('/admin/api/overview')
-    $('mode').textContent = '· mode: ' + d.mode
     $('updated').textContent = 'updated ' + new Date().toLocaleTimeString()
     $('counts').innerHTML = d.statusCounts.length
       ? d.statusCounts.map((c) => '<div class="card"><b>' + c.count + '</b>' + st(c.status) + '</div>').join('')

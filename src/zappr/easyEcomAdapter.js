@@ -3,9 +3,7 @@ import { ZapprApiError } from '../errors.js'
 import { SERVICEABLE_PINCODES } from '../config/constants.js'
 
 /**
- * Build a ZapprAdapter speaking EasyEcom's API against any client factory.
- * Used by both realAdapter (api.easyecom.io) and mockAdapter (mock-zappr-server) —
- * the request/response contract is identical, only base URL and credentials differ.
+ * Build a ZapprAdapter speaking EasyEcom's API (api.easyecom.io).
  *
  * @param {() => import('ky').KyInstance} client
  * @returns {import('./adapter.js').ZapprAdapter}
