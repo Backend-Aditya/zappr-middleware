@@ -74,7 +74,7 @@ router.get('/api/order', adminAuth, async (req, res) => {
 })
 
 // Manually kick tracking polling for an order — e.g. after a job hit its
-// retry ceiling during an upstream outage and stopped requeuing itself.
+// retry ceiling during an upstream outage and stopped requeuing.
 router.post('/api/requeue-tracking', adminAuth, async (req, res) => {
   const zapprOrderId = String(req.body?.zapprOrderId ?? req.query.zapprOrderId ?? '').trim()
   if (!zapprOrderId) return res.status(400).json({ error: 'zapprOrderId required' })
@@ -88,94 +88,359 @@ const PAGE = /* html */ `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zappr Middleware — Status</title>
+<title>Zappr Middleware — Dashboard</title>
 <style>
-  :root { --bg:#0f1216; --card:#171c22; --line:#242c35; --text:#d7dde4; --dim:#8a95a1; --ok:#3fb96f; --warn:#e0a83c; --bad:#e05c5c; }
-  * { box-sizing:border-box; margin:0 }
-  body { background:var(--bg); color:var(--text); font:14px/1.5 ui-monospace,Consolas,monospace; padding:20px; }
-  h1 { font-size:16px; margin-bottom:14px } h2 { font-size:13px; color:var(--dim); margin:18px 0 8px; text-transform:uppercase; letter-spacing:.05em }
-  .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px }
-  input,button { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 10px; font:inherit }
-  input:focus { outline:1px solid var(--dim) } button { cursor:pointer }
-  .cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 16px; min-width:110px }
-  .card b { font-size:20px; display:block }
-  .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:8px }
-  table { border-collapse:collapse; width:100%; font-size:13px }
-  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); white-space:nowrap }
-  th { color:var(--dim); font-weight:normal } tr:last-child td { border-bottom:none }
-  .st { padding:1px 8px; border-radius:10px; font-size:12px }
-  .st-PUSHED,.st-DELIVERED,.st-done,.st-2xx { background:#153524; color:var(--ok) }
-  .st-PENDING,.st-FALLBACK,.st-processing { background:#3a2f14; color:var(--warn) }
-  .st-FAILED,.st-failed,.st-CANCELLED,.st-err { background:#3a1818; color:var(--bad) }
-  .dim { color:var(--dim) } #msg { color:var(--bad); margin:8px 0 }
-  #detail { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:8px; display:none; overflow-x:auto }
-  pre { font:12px/1.5 inherit; white-space:pre-wrap; word-break:break-all }
+  :root {
+    --bg: oklch(1 0 0);
+    --surface: oklch(0.975 0.006 290);
+    --surface-2: oklch(0.955 0.008 290);
+    --border: oklch(0.90 0.012 290);
+    --ink: oklch(0.22 0.02 290);
+    --muted: oklch(0.48 0.02 290);
+    --primary: oklch(0.55 0.14 290);
+    --primary-ink: oklch(0.98 0 0);
+    --primary-soft: oklch(0.94 0.03 290);
+
+    --success-bg: oklch(0.94 0.05 150); --success-ink: oklch(0.32 0.13 150);
+    --warning-bg: oklch(0.94 0.06 80);  --warning-ink: oklch(0.38 0.14 80);
+    --danger-bg:  oklch(0.94 0.06 25);  --danger-ink:  oklch(0.42 0.17 25);
+    --neutral-bg: oklch(0.94 0.01 290); --neutral-ink: oklch(0.42 0.02 290);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(0.12 0 0);
+      --surface: oklch(0.17 0 0);
+      --surface-2: oklch(0.20 0 0);
+      --border: oklch(0.27 0 0);
+      --ink: oklch(0.93 0 0);
+      --muted: oklch(0.64 0 0);
+      --primary: oklch(0.72 0.12 290);
+      --primary-ink: oklch(0.12 0 0);
+      --primary-soft: oklch(0.22 0.03 290);
+
+      --success-bg: oklch(0.24 0.05 150); --success-ink: oklch(0.80 0.15 150);
+      --warning-bg: oklch(0.26 0.06 80);  --warning-ink: oklch(0.82 0.15 80);
+      --danger-bg:  oklch(0.26 0.07 25);  --danger-ink:  oklch(0.82 0.16 25);
+      --neutral-bg: oklch(0.22 0.01 290); --neutral-ink: oklch(0.75 0.02 290);
+    }
+  }
+
+  * { box-sizing: border-box }
+  html { color-scheme: light dark }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.93em }
+
+  header.topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px clamp(16px, 4vw, 40px);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; white-space: nowrap }
+  .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0 }
+  .brand a { color: inherit; text-decoration: none }
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+
+  input, button {
+    font: inherit; font-size: 13.5px;
+    border-radius: 7px; border: 1px solid var(--border);
+    padding: 8px 12px;
+    background: var(--surface); color: var(--ink);
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px }
+  input::placeholder { color: var(--muted); opacity: 1 }
+  button { cursor: pointer; font-weight: 600; transition: background-color 150ms ease-out, border-color 150ms ease-out }
+  button:hover { background: var(--surface-2) }
+  button.primary { background: var(--primary); color: var(--primary-ink); border-color: transparent }
+  button.primary:hover { background: color-mix(in oklch, var(--primary) 88%, black) }
+  button:disabled { opacity: 0.5; cursor: default }
+  .timestamp { color: var(--muted); font-size: 12.5px; white-space: nowrap }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 40px) 64px }
+  section { margin-bottom: 36px }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 14px }
+  h3 { font-size: 14px; font-weight: 600; margin: 0 0 10px }
+
+  #banner {
+    display: none;
+    padding: 12px 16px; margin-bottom: 20px;
+    border-radius: 8px;
+    background: var(--danger-bg); color: var(--danger-ink);
+    font-size: 13.5px; font-weight: 500;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+
+  .lookup-row { display: flex; gap: 8px; flex-wrap: wrap }
+  .lookup-row input { flex: 1; min-width: 220px }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 8px }
+
+  .stats { display: flex; gap: 10px; flex-wrap: wrap }
+  .stat {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .stat-count { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 4px 2px }
+
+  .pill {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .pill-success { background: var(--success-bg); color: var(--success-ink) }
+  .pill-warning { background: var(--warning-bg); color: var(--warning-ink) }
+  .pill-danger  { background: var(--danger-bg);  color: var(--danger-ink) }
+  .pill-neutral { background: var(--neutral-bg); color: var(--neutral-ink) }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px }
+  th, td { text-align: left; padding: 10px 14px; white-space: nowrap; border-bottom: 1px solid var(--border) }
+  th { background: var(--surface-2); color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em }
+  tbody tr:last-child td { border-bottom: none }
+  tbody tr:hover { background: var(--surface) }
+  td.muted, .muted { color: var(--muted) }
+
+  details.section {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  details.section summary {
+    cursor: pointer; list-style: none;
+    padding: 14px 18px; font-weight: 600; font-size: 13.5px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface);
+  }
+  details.section summary::-webkit-details-marker { display: none }
+  details.section summary::before { content: '▸'; color: var(--muted); transition: transform 150ms ease-out }
+  details.section[open] summary::before { transform: rotate(90deg) }
+  details.section .table-wrap { border: none; border-top: 1px solid var(--border); border-radius: 0 }
+
+  #orderResult { margin-top: 16px }
+  .kv { display: grid; grid-template-columns: max-content 1fr; column-gap: 20px; row-gap: 12px; font-size: 13.5px }
+  .kv dt { color: var(--muted) }
+  .kv dd { margin: 0; font-weight: 500 }
+
+  .tracking-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px }
+  .tracking-item {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--surface-2); border-radius: 8px; font-size: 13px;
+  }
+  .tracking-item time { color: var(--muted); min-width: 150px }
+
+  @media (max-width: 640px) {
+    .kv { grid-template-columns: 1fr }
+    .kv dt { padding-top: 6px }
+  }
 </style>
 </head>
 <body>
-<h1>Zappr Middleware</h1>
-<div class="bar">
-  <input id="token" type="password" placeholder="admin token" size="24">
-  <button onclick="saveToken()">Connect</button>
-  <input id="q" placeholder="lookup: order id / #name / zappr ref" size="32" onkeypress="if(event.key==='Enter')lookup()">
-  <button onclick="lookup()">Lookup</button>
-  <button onclick="load()">Refresh</button>
-  <span class="dim" id="updated"></span>
-</div>
-<div id="msg"></div>
-<div id="detail"></div>
-<h2>Orders by status</h2><div class="cards" id="counts"></div>
-<h2>Recent orders (50)</h2><div class="wrap"><table id="orders"></table></div>
-<h2>Recent webhooks (20)</h2><div class="wrap"><table id="webhooks"></table></div>
-<h2>Recent Zappr API calls (20)</h2><div class="wrap"><table id="logs"></table></div>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span> <a href="/">Zappr Middleware</a></div>
+  <div class="controls">
+    <input id="token" type="password" placeholder="Admin token" size="20">
+    <button onclick="saveToken()">Connect</button>
+    <button onclick="load()" id="refreshBtn">Refresh</button>
+    <span class="timestamp" id="updated"></span>
+  </div>
+</header>
+
+<main>
+  <div id="banner"></div>
+
+  <section id="lookup-section">
+    <h2>Find an order</h2>
+    <div class="panel">
+      <div class="lookup-row">
+        <input id="q" placeholder="Shopify order number, order name, or Zappr reference" onkeypress="if(event.key==='Enter')lookup()">
+        <button class="primary" onclick="lookup()">Search</button>
+      </div>
+      <div class="hint">Try a Shopify order name like DON119947, its numeric order ID, or the reference Zappr has on file.</div>
+      <div id="orderResult"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Orders by status</h2>
+    <div class="stats" id="counts"></div>
+  </section>
+
+  <section>
+    <h2>Recent orders</h2>
+    <div class="table-wrap"><table id="orders"></table></div>
+  </section>
+
+  <section>
+    <details class="section">
+      <summary>Webhook events</summary>
+      <div class="table-wrap"><table id="webhooks"></table></div>
+    </details>
+  </section>
+
+  <section>
+    <details class="section">
+      <summary>Zappr API calls</summary>
+      <div class="table-wrap"><table id="logs"></table></div>
+    </details>
+  </section>
+</main>
+
 <script>
 const $ = (id) => document.getElementById(id)
 const tokenKey = 'zappr-admin-token'
 $('token').value = localStorage.getItem(tokenKey) || ''
+
 function saveToken() { localStorage.setItem(tokenKey, $('token').value); load() }
+function showBanner(text) {
+  const b = $('banner')
+  if (!text) { b.style.display = 'none'; b.textContent = ''; return }
+  b.style.display = 'block'; b.textContent = text
+}
+
 const fmt = (d) => d ? new Date(d).toLocaleString() : '—'
-const st = (s) => '<span class="st st-' + s + '">' + s + '</span>'
 const esc = (v) => String(v ?? '—').replace(/</g, '&lt;')
 
-async function api(path) {
+const STATUS_GROUPS = {
+  success: ['PUSHED', 'FULFILLED', 'DELIVERED', 'done', '2xx'],
+  warning: ['PENDING', 'FALLBACK', 'processing'],
+  danger: ['FAILED', 'CANCELLED', 'failed', 'err'],
+}
+function statusClass(s) {
+  for (const [cls, values] of Object.entries(STATUS_GROUPS)) {
+    if (values.includes(s)) return cls
+  }
+  return 'neutral'
+}
+function pill(s) { return '<span class="pill pill-' + statusClass(s) + '">' + esc(s) + '</span>' }
+
+async function api(path, opts) {
   const t = encodeURIComponent(localStorage.getItem(tokenKey) || '')
-  const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + t)
+  const url = path + (path.includes('?') ? '&' : '?') + 'token=' + t
+  const r = await fetch(url, opts)
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error?.message || r.status + ' ' + r.statusText)
   return r.json()
 }
 
 async function load() {
-  $('msg').textContent = ''
+  showBanner('')
   try {
     const d = await api('/admin/api/overview')
-    $('updated').textContent = 'updated ' + new Date().toLocaleTimeString()
+    $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
+
     $('counts').innerHTML = d.statusCounts.length
-      ? d.statusCounts.map((c) => '<div class="card"><b>' + c.count + '</b>' + st(c.status) + '</div>').join('')
-      : '<div class="card dim">no orders yet</div>'
-    $('orders').innerHTML = '<tr><th>created</th><th>shopify order</th><th>zappr ref</th><th>status</th><th>pincode</th><th>slot</th><th>easyecom ids</th></tr>'
-      + d.orders.map((o) => '<tr><td>' + fmt(o.createdAt) + '</td><td>' + esc(o.shopifyOrderName) + ' <span class="dim">' + esc(o.shopifyOrderId) + '</span></td><td>'
-      + esc(o.zapprOrderId) + '</td><td>' + st(o.status) + '</td><td>' + esc(o.pincode) + '</td><td>' + esc(o.slot) + '</td><td class="dim">'
-      + esc(o.metadata?.easyEcomOrderId) + ' / ' + esc(o.metadata?.invoiceId) + '</td></tr>').join('')
-    $('webhooks').innerHTML = '<tr><th>created</th><th>order id</th><th>type</th><th>status</th><th>error</th></tr>'
-      + d.webhooks.map((w) => '<tr><td>' + fmt(w.createdAt) + '</td><td>' + esc(w.shopifyOrderId) + '</td><td>' + esc(w.eventType) + '</td><td>'
-      + st(w.status) + '</td><td class="dim">' + esc(w.error) + '</td></tr>').join('')
-    $('logs').innerHTML = '<tr><th>time</th><th>endpoint</th><th>status</th><th>latency</th></tr>'
-      + d.logs.map((l) => '<tr><td>' + fmt(l.createdAt) + '</td><td>' + esc(l.endpoint) + '</td><td>'
-      + st(l.statusCode >= 400 ? 'err' : '2xx') + ' ' + l.statusCode + '</td><td class="dim">' + esc(l.latencyMs) + ' ms</td></tr>').join('')
-  } catch (e) { $('msg').textContent = 'Error: ' + e.message }
+      ? d.statusCounts.map((c) =>
+          '<div class="stat"><span class="stat-count">' + c.count + '</span>' + pill(c.status) + '</div>').join('')
+      : '<div class="empty">No orders yet — they will appear here once the first Shopify order is pushed to Zappr.</div>'
+
+    $('orders').innerHTML = d.orders.length
+      ? '<thead><tr><th>Created</th><th>Shopify order</th><th>Zappr ref</th><th>Status</th><th>Pincode</th><th>Slot</th><th>EasyEcom IDs</th></tr></thead><tbody>'
+        + d.orders.map((o) =>
+          '<tr><td class="muted">' + fmt(o.createdAt) + '</td>'
+          + '<td>' + esc(o.shopifyOrderName) + ' <span class="muted mono">' + esc(o.shopifyOrderId) + '</span></td>'
+          + '<td class="mono">' + esc(o.zapprOrderId) + '</td>'
+          + '<td>' + pill(o.status) + '</td>'
+          + '<td>' + esc(o.pincode) + '</td>'
+          + '<td>' + esc(o.slot) + '</td>'
+          + '<td class="muted mono">' + esc(o.metadata?.easyEcomOrderId) + ' / ' + esc(o.metadata?.invoiceId) + '</td></tr>').join('')
+        + '</tbody>'
+      : '<tbody><tr><td class="empty">No orders yet.</td></tr></tbody>'
+
+    $('webhooks').innerHTML = d.webhooks.length
+      ? '<thead><tr><th>Received</th><th>Order ID</th><th>Type</th><th>Status</th><th>Error</th></tr></thead><tbody>'
+        + d.webhooks.map((w) =>
+          '<tr><td class="muted">' + fmt(w.createdAt) + '</td><td class="mono">' + esc(w.shopifyOrderId) + '</td><td>' + esc(w.eventType) + '</td>'
+          + '<td>' + pill(w.status) + '</td><td class="muted">' + esc(w.error) + '</td></tr>').join('')
+        + '</tbody>'
+      : '<tbody><tr><td class="empty">No webhook events yet.</td></tr></tbody>'
+
+    $('logs').innerHTML = d.logs.length
+      ? '<thead><tr><th>Time</th><th>Endpoint</th><th>Status</th><th>Latency</th></tr></thead><tbody>'
+        + d.logs.map((l) =>
+          '<tr><td class="muted">' + fmt(l.createdAt) + '</td><td class="mono">' + esc(l.endpoint) + '</td>'
+          + '<td>' + pill(l.statusCode >= 400 ? 'err' : '2xx') + ' <span class="muted">' + esc(l.statusCode) + '</span></td>'
+          + '<td class="muted">' + esc(l.latencyMs) + ' ms</td></tr>').join('')
+        + '</tbody>'
+      : '<tbody><tr><td class="empty">No Zappr API calls logged yet.</td></tr></tbody>'
+  } catch (e) {
+    showBanner('Could not load dashboard: ' + e.message)
+  }
+}
+
+function renderOrderResult(d) {
+  const m = d.mapping
+  const kv = [
+    ['Shopify order', esc(m.shopifyOrderName) + ' <span class="muted mono">' + esc(m.shopifyOrderId) + '</span>'],
+    ['Status', pill(m.status)],
+    ['Zappr reference', '<span class="mono">' + esc(m.zapprOrderId) + '</span>'],
+    ['Pincode', esc(m.pincode)],
+    ['Delivery slot', esc(m.slot)],
+    ['Surcharge', m.surchargeAmount != null ? '₹' + esc(m.surchargeAmount) : '—'],
+    ['EasyEcom order / invoice', '<span class="mono">' + esc(m.metadata?.easyEcomOrderId) + ' / ' + esc(m.metadata?.invoiceId) + '</span>'],
+    ['Created', fmt(m.createdAt)],
+    ['Last updated', fmt(m.updatedAt)],
+  ]
+
+  const trackingHtml = d.tracking.length
+    ? '<div class="tracking-list">' + d.tracking.map((t) =>
+        '<div class="tracking-item"><time>' + fmt(t.createdAt) + '</time>' + pill(t.status)
+        + (t.trackingNumber ? '<span class="mono">' + esc(t.trackingNumber) + '</span>' : '<span class="muted">No tracking number yet</span>')
+        + '</div>').join('') + '</div>'
+    : '<div class="empty">No tracking updates yet.</div>'
+
+  $('orderResult').innerHTML = '<hr style="border:none;border-top:1px solid var(--border);margin:18px 0">'
+    + '<dl class="kv">' + kv.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl>'
+    + '<h3 style="margin-top:20px">Tracking history</h3>' + trackingHtml
+    + '<div style="margin-top:14px">'
+    + '<button id="retryBtn"' + (m.zapprOrderId ? '' : ' disabled') + '>Retry tracking check</button>'
+    + ' <span class="muted" id="retryMsg" style="font-size:12.5px"></span>'
+    + '</div>'
+
+  const retryBtn = $('retryBtn')
+  if (retryBtn) {
+    retryBtn.onclick = async () => {
+      retryBtn.disabled = true
+      $('retryMsg').textContent = 'Requesting a fresh tracking check…'
+      try {
+        await api('/admin/api/requeue-tracking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zapprOrderId: m.zapprOrderId }),
+        })
+        $('retryMsg').textContent = 'Done — check back in a minute for the updated status.'
+      } catch (e) {
+        $('retryMsg').textContent = 'Could not requeue: ' + e.message
+      } finally {
+        retryBtn.disabled = false
+      }
+    }
+  }
 }
 
 async function lookup() {
-  $('msg').textContent = ''
+  showBanner('')
   const q = $('q').value.trim()
   if (!q) return
   try {
     const d = await api('/admin/api/order?q=' + encodeURIComponent(q))
-    $('detail').style.display = 'block'
-    $('detail').innerHTML = '<h2>Order detail</h2><pre>' + esc(JSON.stringify(d.mapping, null, 2)) + '</pre>'
-      + '<h2>Tracking updates</h2><pre>' + esc(JSON.stringify(d.tracking, null, 2)) + '</pre>'
-  } catch (e) { $('detail').style.display = 'none'; $('msg').textContent = 'Lookup: ' + e.message }
+    renderOrderResult(d)
+  } catch (e) {
+    $('orderResult').innerHTML = ''
+    showBanner('Lookup: ' + e.message)
+  }
 }
 
 if (localStorage.getItem(tokenKey)) load()

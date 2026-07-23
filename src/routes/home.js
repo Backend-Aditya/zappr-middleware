@@ -9,42 +9,155 @@ const PAGE = /* html */ `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zappr Middleware</title>
 <style>
-  :root { --bg:#0d1117; --card:#161c24; --line:#28313c; --text:#e2e8f0; --dim:#94a3b8; --accent:#60a5fa; }
-  * { box-sizing:border-box; margin:0 }
-  body { background:var(--bg); color:var(--text); font:15px/1.6 system-ui,Segoe UI,sans-serif; padding:40px 20px; max-width:760px; margin:0 auto }
-  h1 { font-size:22px; margin-bottom:4px }
-  .sub { color:var(--dim); margin-bottom:28px }
-  .flow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:28px; justify-content:center }
-  .node { border:1px solid var(--line); border-radius:8px; padding:8px 16px; background:var(--bg); font-weight:600 }
-  .arrow { color:var(--dim) }
-  ul { list-style:none }
-  li { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin-bottom:10px }
-  li b { display:block; margin-bottom:2px }
-  li span { color:var(--dim); font-size:13.5px }
-  .foot { color:var(--dim); font-size:13px; margin-top:24px }
-  a { color:var(--accent); text-decoration:none }
+  :root {
+    --bg: oklch(1 0 0);
+    --surface: oklch(0.975 0.006 290);
+    --border: oklch(0.90 0.012 290);
+    --ink: oklch(0.22 0.02 290);
+    --muted: oklch(0.48 0.02 290);
+    --primary: oklch(0.55 0.14 290);
+    --primary-ink: oklch(0.98 0 0);
+    --primary-soft: oklch(0.94 0.03 290);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(0.12 0 0);
+      --surface: oklch(0.17 0 0);
+      --border: oklch(0.27 0 0);
+      --ink: oklch(0.93 0 0);
+      --muted: oklch(0.64 0 0);
+      --primary: oklch(0.72 0.12 290);
+      --primary-ink: oklch(0.12 0 0);
+      --primary-soft: oklch(0.22 0.03 290);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0 }
+  html { color-scheme: light dark }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px clamp(20px, 5vw, 48px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px }
+  .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); flex-shrink: 0 }
+  .navlinks { display: flex; gap: 24px; flex-wrap: wrap }
+  .navlinks a { color: var(--muted); text-decoration: none; font-size: 14.5px; font-weight: 500 }
+  .navlinks a:hover, .navlinks a:focus-visible { color: var(--ink) }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: clamp(56px, 12vh, 104px) 20px 64px;
+    text-align: center;
+  }
+  h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin-bottom: 16px;
+  }
+  .lede {
+    color: var(--muted);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    max-width: 52ch;
+    margin: 0 auto 40px;
+    text-wrap: pretty;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .flow .node {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 16px;
+    background: var(--surface);
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .flow .arrow { color: var(--muted); font-size: 14px }
+
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  }
+  .btn-primary { background: var(--primary); color: var(--primary-ink) }
+  .btn-primary:hover, .btn-primary:focus-visible { background: color-mix(in oklch, var(--primary) 88%, black) }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--border) }
+  .btn-secondary:hover, .btn-secondary:focus-visible { background: var(--surface) }
+  .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px }
+
+  footer {
+    text-align: center;
+    padding: 24px 20px 40px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  footer a { color: inherit }
 </style>
 </head>
 <body>
-<h1>Zappr Middleware</h1>
-<div class="sub">Shopify ↔ Zappr (EasyEcom) quick-delivery integration for Unived</div>
 
-<div class="flow">
-  <span class="node">Shopify Store</span><span class="arrow">⇄</span>
-  <span class="node">Middleware</span><span class="arrow">⇄</span>
-  <span class="node">Zappr / EasyEcom</span>
-</div>
+<nav>
+  <div class="brand"><span class="dot"></span> Zappr Middleware</div>
+  <div class="navlinks">
+    <a href="/admin">Admin</a>
+    <a href="/health">Health</a>
+    <a href="/ready">Ready</a>
+  </div>
+</nav>
 
-<ul>
-  <li><b>Storefront delivery check</b><span>Pincode widget on product pages — verifies serviceable area, product eligibility, and live warehouse stock, then shows a same-day / next-day promise with the delivery fee.</span></li>
-  <li><b>Automatic order push</b><span>Paid Shopify orders are verified and pushed to Zappr in the background, with retries and safe fallback to standard fulfillment when quick delivery isn't possible.</span></li>
-  <li><b>Tracking sync</b><span>Courier status and AWB numbers flow back via webhooks and polling, creating and updating the Shopify fulfillment automatically.</span></li>
-  <li><b>Cancellation propagation</b><span>Cancels are forwarded to Zappr so no dead orders sit in the warehouse queue.</span></li>
-  <li><b>Secure by default</b><span>Shopify HMAC verification on webhooks and App Proxy requests, shared-secret tokens on inbound Zappr webhooks, rate limiting on public endpoints.</span></li>
-  <li><b>Operations dashboard</b><span>Live order statuses, webhook events, and Zappr API logs at <a href="/admin">/admin</a> (token required).</span></li>
-</ul>
+<main>
+  <h1>Shopify and Zappr, kept in sync automatically</h1>
+  <p class="lede">
+    This service connects Unived's Shopify store to Zappr's quick-delivery network —
+    checking stock and pincode availability, pushing paid orders through, and keeping
+    delivery tracking up to date without anyone needing to do it by hand.
+  </p>
 
-<div class="foot">Status: <a href="/health">/health</a> · <a href="/ready">/ready</a></div>
+  <div class="flow">
+    <span class="node">Shopify Store</span><span class="arrow">⇄</span>
+    <span class="node">Middleware</span><span class="arrow">⇄</span>
+    <span class="node">Zappr / EasyEcom</span>
+  </div>
+
+  <div class="cta">
+    <a class="btn btn-primary" href="/admin">Open dashboard</a>
+    <a class="btn btn-secondary" href="/health">Check system health</a>
+  </div>
+</main>
+
+<footer>
+  Status endpoints: <a href="/health">/health</a> · <a href="/ready">/ready</a>
+</footer>
+
 </body>
 </html>`
 
