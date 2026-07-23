@@ -315,9 +315,9 @@ const fmt = (d) => d ? new Date(d).toLocaleString() : '—'
 const esc = (v) => String(v ?? '—').replace(/</g, '&lt;')
 
 const STATUS_GROUPS = {
-  success: ['PUSHED', 'FULFILLED', 'DELIVERED', 'done', '2xx'],
-  warning: ['PENDING', 'FALLBACK', 'processing'],
-  danger: ['FAILED', 'CANCELLED', 'failed', 'err'],
+  success: ['PUSHED', 'FULFILLED', 'DELIVERED', 'Delivered', 'Shipped', 'done', '2xx'],
+  warning: ['PENDING', 'FALLBACK', 'processing', 'Assigned', 'Confirmed'],
+  danger: ['FAILED', 'CANCELLED', 'Cancelled', 'failed', 'err'],
 }
 function statusClass(s) {
   for (const [cls, values] of Object.entries(STATUS_GROUPS)) {
