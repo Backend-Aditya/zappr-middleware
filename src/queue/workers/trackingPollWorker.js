@@ -10,11 +10,14 @@ import { createLogger } from '../../utils/logger.js'
 
 const log = createLogger('tracking-poll-worker')
 
-const POLL_INTERVAL_MS = 5 * 60 * 1000
+// Tracking webhook (set up with Zappr directly) is the primary channel —
+// polling is only a fallback, kept infrequent to stay well under EasyEcom's
+// per-x-api-key rate limit (500 req/day, 5 req/sec).
+const POLL_INTERVAL_MS = env.ZAPPR_TRACKING_POLL_INTERVAL_MINUTES * 60 * 1000
 // A transient Zappr/EasyEcom outage must never permanently stop tracking for
-// an order — this bounds it instead: give up only after ~14 days of 5-minute
-// polls (an order still not delivered by then needs a human, not a retry).
-const MAX_POLLS = (14 * 24 * 60) / 5
+// an order — this bounds it instead: give up only after ~14 days of polling
+// (an order still not delivered by then needs a human, not a retry).
+const MAX_POLLS = (14 * 24 * 60) / env.ZAPPR_TRACKING_POLL_INTERVAL_MINUTES
 
 async function boot() {
   await Promise.all([connectPostgres(), connectRedis()])

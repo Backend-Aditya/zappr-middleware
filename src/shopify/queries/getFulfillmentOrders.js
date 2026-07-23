@@ -3,6 +3,17 @@ export const GET_FULFILLMENT_ORDERS = /* GraphQL */ `
     order(id: $orderId) {
       id
       name
+      billingAddress {
+        firstName
+        lastName
+        phone
+        address1
+        address2
+        city
+        province
+        countryCode
+        zip
+      }
       fulfillmentOrders(first: 10) {
         nodes {
           id

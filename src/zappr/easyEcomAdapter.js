@@ -56,10 +56,10 @@ export function buildEasyEcomAdapter(client) {
     },
 
     /**
-     * @param {{ items: Array<{zapprSku:string,quantity:number}>, pincode: string, slot: string, address: object, shopifyReference: string }} opts
+     * @param {{ items: Array<{zapprSku:string,quantity:number}>, pincode: string, slot: string, address: object, billingAddress: object, shopifyReference: string }} opts
      * @returns {Promise<{ zapprOrderId: string, estimatedDelivery: string | null }>}
      */
-    async createOrder({ items, pincode, address, shopifyReference }) {
+    async createOrder({ items, pincode, address, billingAddress, shopifyReference }) {
       try {
         const body = {
           orderType: 'retailorder',
@@ -77,6 +77,20 @@ export function buildEasyEcomAdapter(client) {
             Price: String(item.price ?? '1'),
           })),
           customer: [{
+            // Zappr's own system substitutes a generic offline customer
+            // record when billing is absent — always send it, falling back
+            // to the shipping address when no distinct billing address exists.
+            billing: {
+              name: billingAddress?.name ?? address?.name ?? '',
+              addressLine1: billingAddress?.address1 ?? address?.address1 ?? '',
+              addressLine2: billingAddress?.address2 ?? address?.address2 ?? '',
+              postalCode: billingAddress?.zip ?? pincode,
+              city: billingAddress?.city ?? address?.city ?? '',
+              state: billingAddress?.province ?? address?.province ?? '',
+              country: billingAddress?.country ?? address?.country ?? 'India',
+              contact: billingAddress?.phone ?? address?.phone ?? '',
+              email: billingAddress?.email ?? address?.email ?? '',
+            },
             shipping: {
               name: address?.name ?? '',
               addressLine1: address?.address1 ?? '',

@@ -56,6 +56,10 @@ export const env = createEnv({
     ADMIN_TOKEN: z.string().min(16).optional(),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
     ZAPPR_STOCK_TTL_SECONDS: z.coerce.number().int().positive().default(120),
+    // EasyEcom rate-limits per x-api-key (500 req/day, 5 req/sec) — polling is
+    // only a fallback for the tracking webhook, so it defaults to a low
+    // frequency and stays easily tunable without a code change.
+    ZAPPR_TRACKING_POLL_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   },
 
   runtimeEnv: process.env,

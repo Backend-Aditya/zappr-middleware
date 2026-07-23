@@ -96,6 +96,23 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
     country: destination?.countryCode === 'IN' ? 'India' : destination?.countryCode ?? 'India',
   }
 
+  // Shopify orders rarely have a distinct billing address on file for this
+  // flow (no separate email field on OrderAddress either) — fall back to the
+  // shipping address field-by-field so Zappr always gets a populated billing
+  // block instead of blanks.
+  const shopifyBilling = orderData.order?.billingAddress
+  const billingAddress = {
+    name: [shopifyBilling?.firstName, shopifyBilling?.lastName].filter(Boolean).join(' ') || address.name,
+    address1: shopifyBilling?.address1 ?? address.address1,
+    address2: shopifyBilling?.address2 ?? address.address2,
+    city: shopifyBilling?.city ?? address.city,
+    province: shopifyBilling?.province ?? address.province,
+    country: shopifyBilling?.countryCode === 'IN' ? 'India' : (shopifyBilling?.countryCode ?? address.country),
+    phone: shopifyBilling?.phone ?? address.phone,
+    email: address.email,
+    zip: shopifyBilling?.zip ?? pincode,
+  }
+
   // Sort SKUs before locking so two orders sharing SKUs always acquire locks
   // in the same order (avoids A-waits-for-B-waits-for-A deadlocks).
   const uniqueSkus = [...new Set(zapprItems.map((i) => i.zapprSku))].sort()
@@ -130,6 +147,7 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
         pincode,
         slot,
         address,
+        billingAddress,
         shopifyReference: zapprReference,
       })
     } catch (err) {
