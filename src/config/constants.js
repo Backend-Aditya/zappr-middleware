@@ -1,6 +1,6 @@
 export const IST_TIMEZONE = 'Asia/Kolkata'
 
-export const SLOT_CUTOFF_HOUR = 15 // 15:00 IST
+export const SLOT_CUTOFF_HOUR = 21 // 21:00 IST (Zappr moved this from 15:00 on 2026-07-25)
 
 export const ORDER_STATUS = /** @type {const} */ ({
   PENDING: 'PENDING',

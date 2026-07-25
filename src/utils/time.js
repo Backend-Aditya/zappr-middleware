@@ -42,7 +42,7 @@ export function determineSlot(at) {
  */
 export function deliveryPromiseText(slot) {
   if (slot === DELIVERY_SLOT.SAME_DAY) {
-    return 'Delivered today by 9 PM'
+    return 'Delivered within 1 hour'
   }
   const tomorrow = nowIST().add(1, 'day').format('ddd, D MMM')
   return `Delivered by ${tomorrow}`

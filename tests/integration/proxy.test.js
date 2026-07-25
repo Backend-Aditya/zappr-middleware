@@ -63,7 +63,7 @@ function buildProxyQuery(overrides = {}) {
 let app
 
 beforeAll(() => {
-  // Pin clock before the 15:00 IST same-day cutoff so slot assertions are deterministic
+  // Pin clock before the 21:00 IST same-day cutoff so slot assertions are deterministic
   vi.useFakeTimers({ now: new Date('2026-07-01T04:30:00.000Z'), toFake: ['Date'] }) // 10:00 IST
   app = createApp()
 })

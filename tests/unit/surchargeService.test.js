@@ -13,32 +13,32 @@ const { computeSurcharge } = await import('../../src/services/surchargeService.j
 const { DELIVERY_SLOT } = await import('../../src/config/constants.js')
 
 describe('computeSurcharge', () => {
-  it('returns SAME_DAY slot before 15:00 IST', () => {
+  it('returns SAME_DAY slot before 21:00 IST', () => {
     // 09:00 IST = 03:30 UTC
     const at = new Date('2026-06-27T03:30:00Z')
     const result = computeSurcharge(at)
     expect(result.slot).toBe(DELIVERY_SLOT.SAME_DAY)
     expect(result.surcharge).toBe(49)
-    expect(result.deliveryPromise).toMatch(/today/)
+    expect(result.deliveryPromise).toMatch(/within 1 hour/)
   })
 
-  it('returns NEXT_DAY slot at exactly 15:00 IST', () => {
-    // 15:00 IST = 09:30 UTC
-    const at = new Date('2026-06-27T09:30:00Z')
+  it('returns NEXT_DAY slot at exactly 21:00 IST', () => {
+    // 21:00 IST = 15:30 UTC
+    const at = new Date('2026-06-27T15:30:00Z')
     const result = computeSurcharge(at)
     expect(result.slot).toBe(DELIVERY_SLOT.NEXT_DAY)
   })
 
-  it('returns NEXT_DAY slot after 15:00 IST', () => {
-    // 18:00 IST = 12:30 UTC
-    const at = new Date('2026-06-27T12:30:00Z')
+  it('returns NEXT_DAY slot after 21:00 IST', () => {
+    // 23:00 IST = 17:30 UTC
+    const at = new Date('2026-06-27T17:30:00Z')
     const result = computeSurcharge(at)
     expect(result.slot).toBe(DELIVERY_SLOT.NEXT_DAY)
   })
 })
 
 describe('computeSurcharge with holidays', () => {
-  it('returns NEXT_DAY on a configured holiday even before 15:00 IST', async () => {
+  it('returns NEXT_DAY on a configured holiday even before 21:00 IST', async () => {
     vi.resetModules()
     vi.doMock('../../src/config/env.js', () => ({
       env: {

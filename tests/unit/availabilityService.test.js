@@ -14,7 +14,7 @@ vi.mock('../../src/services/surchargeService.js', () => ({
   computeSurcharge: vi.fn(() => ({
     slot: 'SAME_DAY',
     surcharge: 49,
-    deliveryPromise: 'Delivered today by 9 PM',
+    deliveryPromise: 'Delivered within 1 hour',
   })),
 }))
 

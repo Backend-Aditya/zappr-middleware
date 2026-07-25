@@ -98,7 +98,7 @@ Response:
 {
   "available": true,
   "slot": "SAME_DAY",
-  "deliveryPromise": "Delivered today by 9 PM",
+  "deliveryPromise": "Delivered within 1 hour",
   "surcharge": 49,
   "reason": null
 }
@@ -178,8 +178,8 @@ npm run test:coverage       # with coverage report
 
 | Order time (IST) | Slot |
 |------------------|------|
-| Before 15:00 | SAME_DAY |
-| 15:00 or later | NEXT_DAY |
+| Before 21:00 | SAME_DAY |
+| 21:00 or later | NEXT_DAY |
 | Holiday (ZAPPR_HOLIDAYS) | NEXT_DAY |
 
 Uses `dayjs` with `Asia/Kolkata` timezone — never hardcoded UTC offsets.
