@@ -1,11 +1,31 @@
 import { env } from '../config/env.js'
 import { ZapprApiError } from '../errors.js'
 import { SERVICEABLE_PINCODES } from '../config/constants.js'
+import { invalidateEasyEcomToken } from './tokenService.js'
+
+/**
+ * Run a request against a fresh client; on 401 (expired JWT), invalidate the
+ * cached token and retry exactly once with a newly-fetched one.
+ * @param {() => Promise<import('ky').KyInstance>} client
+ * @param {(c: import('ky').KyInstance) => Promise<any>} run
+ * @returns {Promise<any>}
+ */
+async function withAuthRetry(client, run) {
+  try {
+    return await run(await client())
+  } catch (err) {
+    if (err?.response?.status === 401) {
+      await invalidateEasyEcomToken()
+      return await run(await client())
+    }
+    throw err
+  }
+}
 
 /**
  * Build a ZapprAdapter speaking EasyEcom's API (api.easyecom.io).
  *
- * @param {() => import('ky').KyInstance} client
+ * @param {() => Promise<import('ky').KyInstance>} client
  * @returns {import('./adapter.js').ZapprAdapter}
  */
 export function buildEasyEcomAdapter(client) {
@@ -16,7 +36,7 @@ export function buildEasyEcomAdapter(client) {
      */
     async checkStock({ zapprSku }) {
       try {
-        const res = await client().get('getInventoryDetailsV3', {
+        const res = await withAuthRetry(client, (c) => c.get('getInventoryDetailsV3', {
           searchParams: {
             includeLocations: 1,
             inlcudeCustomers: 0,
@@ -24,7 +44,7 @@ export function buildEasyEcomAdapter(client) {
             sku: zapprSku,
             get_back_orders: false,
           },
-        }).json()
+        }).json())
 
         // Real API nests rows under data.inventoryData; tolerate a bare
         // data[] array too (older shape used by fixtures/mock).
@@ -103,7 +123,7 @@ export function buildEasyEcomAdapter(client) {
           }],
         }
 
-        const res = await client().post('webhook/v2/createOrder', { json: body }).json()
+        const res = await withAuthRetry(client, (c) => c.post('webhook/v2/createOrder', { json: body }).json())
 
         // EasyEcom can return HTTP 200 with a failure body: either
         // { status: false } or { code: 400, data: [{ Message }] }
@@ -134,9 +154,9 @@ export function buildEasyEcomAdapter(client) {
      */
     async getTracking({ zapprOrderId }) {
       try {
-        const res = await client().get('Carriers/getTrackingDetails', {
+        const res = await withAuthRetry(client, (c) => c.get('Carriers/getTrackingDetails', {
           searchParams: { reference_code: zapprOrderId },
-        }).json()
+        }).json())
 
         // Real response is { code, message, data: [ {...} ] } — data is an
         // array even for a single order. Tolerate a bare array/object too.
@@ -162,9 +182,9 @@ export function buildEasyEcomAdapter(client) {
      */
     async cancelOrder({ zapprOrderId }) {
       try {
-        return await client().post('orders/cancelOrder', {
+        return await withAuthRetry(client, (c) => c.post('orders/cancelOrder', {
           json: { reference_code: zapprOrderId },
-        }).json()
+        }).json())
       } catch (err) {
         throw new ZapprApiError(`Cancel order failed: ${err.message}`)
       }
@@ -176,9 +196,9 @@ export function buildEasyEcomAdapter(client) {
      */
     async getOrderDetails({ invoiceId }) {
       try {
-        return await client().get('orders/V2/getOrderDetails', {
+        return await withAuthRetry(client, (c) => c.get('orders/V2/getOrderDetails', {
           searchParams: { invoice_id: invoiceId },
-        }).json()
+        }).json())
       } catch (err) {
         throw new ZapprApiError(`Get order details failed: ${err.message}`)
       }

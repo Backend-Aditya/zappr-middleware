@@ -28,6 +28,13 @@ export const env = createEnv({
     // (e.g. /webhooks/zappr/tracking?token=...) — EasyEcom does not sign webhooks
     ZAPPR_WEBHOOK_TOKEN: z.string().min(16),
     ZAPPR_CARRIER_ID: z.coerce.number().int().positive().optional(),
+    // Optional: auto-refresh ZAPPR_API_KEY (JWT expires periodically) via
+    // Zappr's Supabase-backed credentials endpoint instead of manual rotation.
+    // Falls back to the static ZAPPR_API_KEY above when unset.
+    ZAPPR_SUPABASE_URL: z.string().url().default('https://sgcgvqsduwhypnhzvozw.supabase.co'),
+    ZAPPR_SUPABASE_ANON_KEY: z.string().optional(),
+    ZAPPR_SUPABASE_EMAIL: z.string().optional(),
+    ZAPPR_SUPABASE_PASSWORD: z.string().optional(),
     // Master switch for the quick-delivery surcharge; amount ignored when off
     ZAPPR_SURCHARGE_ENABLED: z
       .enum(['true', 'false'])
