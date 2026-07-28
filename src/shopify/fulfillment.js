@@ -49,6 +49,20 @@ const UPDATE_TRACKING = /* GraphQL */ `
   }
 `
 
+const MOVE_FULFILLMENT_ORDER = /* GraphQL */ `
+  mutation FulfillmentOrderMove($id: ID!, $newLocationId: ID!) {
+    fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {
+      movedFulfillmentOrder {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`
+
 /**
  * Fetch fulfillment orders for a Shopify order.
  * @param {string} shopifyOrderGid - gid://shopify/Order/123
@@ -98,5 +112,24 @@ export async function updateFulfillmentTracking({ fulfillmentId, trackingNumber,
   if (userErrors?.length) {
     log.error({ userErrors }, 'FulfillmentTrackingInfoUpdate userErrors')
     throw new Error(`Tracking update failed: ${userErrors.map((e) => e.message).join(', ')}`)
+  }
+}
+
+/**
+ * Move a fulfillment order to a different Shopify location — used to route
+ * Zappr-eligible orders to the Zappr-managed location.
+ * @param {{ fulfillmentOrderId: string, locationId: string }} opts
+ * @returns {Promise<void>}
+ */
+export async function moveFulfillmentOrder({ fulfillmentOrderId, locationId }) {
+  const data = await shopifyGraphql(MOVE_FULFILLMENT_ORDER, {
+    id: fulfillmentOrderId,
+    newLocationId: locationId,
+  })
+
+  const { userErrors } = data.fulfillmentOrderMove
+  if (userErrors?.length) {
+    log.error({ userErrors }, 'FulfillmentOrderMove userErrors')
+    throw new Error(`FulfillmentOrderMove failed: ${userErrors.map((e) => e.message).join(', ')}`)
   }
 }
