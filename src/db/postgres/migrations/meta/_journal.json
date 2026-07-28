@@ -8,6 +8,13 @@
       "when": 1782561711605,
       "tag": "0000_lean_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785259179791,
+      "tag": "0001_graceful_lockjaw",
+      "breakpoints": true
     }
   ]
 }

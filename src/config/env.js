@@ -28,6 +28,9 @@ export const env = createEnv({
     // (e.g. /webhooks/zappr/tracking?token=...) — EasyEcom does not sign webhooks
     ZAPPR_WEBHOOK_TOKEN: z.string().min(16),
     ZAPPR_CARRIER_ID: z.coerce.number().int().positive().optional(),
+    // Bangalore Zappr Shopify location GID — resolve once with
+    // scripts/get-location-id.js, then set manually; it will not change.
+    ZAPPR_SHOPIFY_LOCATION_ID: z.string().optional(),
     // Optional: auto-refresh ZAPPR_API_KEY (JWT expires periodically) via
     // Zappr's Supabase-backed credentials endpoint instead of manual rotation.
     // Falls back to the static ZAPPR_API_KEY above when unset.

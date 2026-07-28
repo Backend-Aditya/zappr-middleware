@@ -89,3 +89,21 @@ export const zapprLogs = pgTable(
     index('idx_zappr_logs_created_at').on(t.createdAt),
   ],
 )
+
+// Tracks which SKUs the periodic Zappr-inventory-sync job pushes stock for.
+// Populated organically (order push) and by the daily catalog scan.
+export const zapprSyncedSkus = pgTable(
+  'zappr_synced_skus',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    sku: varchar('sku', { length: 128 }).notNull().unique(),
+    shopifyVariantId: varchar('shopify_variant_id', { length: 128 }).notNull(),
+    shopifyInventoryItemId: varchar('shopify_inventory_item_id', { length: 128 }).notNull(),
+    lastQuantity: integer('last_quantity'),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(now()),
+  },
+  (t) => [
+    index('idx_zappr_synced_skus_sku').on(t.sku),
+  ],
+)
