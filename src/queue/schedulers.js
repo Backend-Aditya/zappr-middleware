@@ -13,7 +13,7 @@ export async function registerScheduledJobs() {
     'daily-db-cleanup',
     { type: 'cleanup' },
     {
-      repeat: { cron: '0 21 * * *' },
+      repeat: { pattern: '0 21 * * *' },
       jobId: 'daily-db-cleanup',
     },
   )
@@ -25,7 +25,7 @@ export async function registerScheduledJobs() {
     'zappr-inventory-sync',
     { type: 'zappr-inventory-sync' },
     {
-      repeat: { cron: '0 */6 * * *' },
+      repeat: { pattern: '0 */6 * * *' },
       jobId: 'zappr-inventory-sync',
     },
   )
@@ -36,7 +36,7 @@ export async function registerScheduledJobs() {
     'zappr-sku-scan',
     { type: 'zappr-sku-scan' },
     {
-      repeat: { cron: '30 21 * * *' },
+      repeat: { pattern: '30 21 * * *' },
       jobId: 'zappr-sku-scan',
     },
   )

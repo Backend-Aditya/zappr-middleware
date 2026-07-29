@@ -3,7 +3,7 @@ import antfu from '@antfu/eslint-config'
 export default antfu({
   type: 'app',
   stylistic: false, // prettier owns formatting
-  ignores: ['node_modules', 'coverage', 'src/db/postgres/migrations'],
+  ignores: ['node_modules', 'coverage', 'src/db/postgres/migrations', '.superpowers/**', 'docs/superpowers/**'],
 }, {
   rules: {
     'no-console': 'off',

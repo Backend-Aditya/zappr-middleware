@@ -55,6 +55,9 @@ const MOVE_FULFILLMENT_ORDER = /* GraphQL */ `
       movedFulfillmentOrder {
         id
       }
+      remainingFulfillmentOrder {
+        id
+      }
       userErrors {
         field
         message
@@ -117,9 +120,12 @@ export async function updateFulfillmentTracking({ fulfillmentId, trackingNumber,
 
 /**
  * Move a fulfillment order to a different Shopify location — used to route
- * Zappr-eligible orders to the Zappr-managed location.
+ * Zappr-eligible orders to the Zappr-managed location. Shopify may split the
+ * fulfillment order if the destination doesn't stock every line item, so the
+ * moved (and possibly remaining) fulfillment-order IDs are returned rather
+ * than discarded — callers must not assume the original ID is still valid.
  * @param {{ fulfillmentOrderId: string, locationId: string }} opts
- * @returns {Promise<void>}
+ * @returns {Promise<{ movedFulfillmentOrderId: string | null, remainingFulfillmentOrderId: string | null }>}
  */
 export async function moveFulfillmentOrder({ fulfillmentOrderId, locationId }) {
   const data = await shopifyGraphql(MOVE_FULFILLMENT_ORDER, {
@@ -131,5 +137,10 @@ export async function moveFulfillmentOrder({ fulfillmentOrderId, locationId }) {
   if (userErrors?.length) {
     log.error({ userErrors }, 'FulfillmentOrderMove userErrors')
     throw new Error(`FulfillmentOrderMove failed: ${userErrors.map((e) => e.message).join(', ')}`)
+  }
+
+  return {
+    movedFulfillmentOrderId: data.fulfillmentOrderMove.movedFulfillmentOrder?.id ?? null,
+    remainingFulfillmentOrderId: data.fulfillmentOrderMove.remainingFulfillmentOrder?.id ?? null,
   }
 }

@@ -14,19 +14,40 @@ beforeEach(() => {
 })
 
 describe('moveFulfillmentOrder', () => {
-  it('calls fulfillmentOrderMove with the right variables', async () => {
-    mockGraphql.mockResolvedValue({ fulfillmentOrderMove: { movedFulfillmentOrder: { id: 'fo-1' }, userErrors: [] } })
+  it('calls fulfillmentOrderMove with the right variables and returns the moved/remaining IDs', async () => {
+    mockGraphql.mockResolvedValue({
+      fulfillmentOrderMove: {
+        movedFulfillmentOrder: { id: 'fo-1' },
+        remainingFulfillmentOrder: null,
+        userErrors: [],
+      },
+    })
 
-    await moveFulfillmentOrder({ fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/1', locationId: 'gid://shopify/Location/1' })
+    const result = await moveFulfillmentOrder({ fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/1', locationId: 'gid://shopify/Location/1' })
 
     expect(mockGraphql).toHaveBeenCalledWith(
       expect.stringContaining('fulfillmentOrderMove'),
       { id: 'gid://shopify/FulfillmentOrder/1', newLocationId: 'gid://shopify/Location/1' },
     )
+    expect(result).toEqual({ movedFulfillmentOrderId: 'fo-1', remainingFulfillmentOrderId: null })
+  })
+
+  it('returns the remaining fulfillment order ID when Shopify splits the order', async () => {
+    mockGraphql.mockResolvedValue({
+      fulfillmentOrderMove: {
+        movedFulfillmentOrder: { id: 'fo-moved' },
+        remainingFulfillmentOrder: { id: 'fo-remaining' },
+        userErrors: [],
+      },
+    })
+
+    const result = await moveFulfillmentOrder({ fulfillmentOrderId: 'fo-1', locationId: 'loc-1' })
+
+    expect(result).toEqual({ movedFulfillmentOrderId: 'fo-moved', remainingFulfillmentOrderId: 'fo-remaining' })
   })
 
   it('throws on userErrors', async () => {
-    mockGraphql.mockResolvedValue({ fulfillmentOrderMove: { movedFulfillmentOrder: null, userErrors: [{ field: 'id', message: 'not found' }] } })
+    mockGraphql.mockResolvedValue({ fulfillmentOrderMove: { movedFulfillmentOrder: null, remainingFulfillmentOrder: null, userErrors: [{ field: 'id', message: 'not found' }] } })
 
     await expect(moveFulfillmentOrder({ fulfillmentOrderId: 'fo-1', locationId: 'loc-1' })).rejects.toThrow(/not found/)
   })

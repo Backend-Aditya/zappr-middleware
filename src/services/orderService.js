@@ -49,7 +49,21 @@ async function syncShopifyZapprSideEffects({ shopifyOrderId, fulfillmentOrderId,
   if (!env.ZAPPR_SHOPIFY_LOCATION_ID) return
 
   try {
-    await moveFulfillmentOrder({ fulfillmentOrderId, locationId: env.ZAPPR_SHOPIFY_LOCATION_ID })
+    const moveResult = await moveFulfillmentOrder({ fulfillmentOrderId, locationId: env.ZAPPR_SHOPIFY_LOCATION_ID })
+
+    if (moveResult?.movedFulfillmentOrderId && moveResult.movedFulfillmentOrderId !== fulfillmentOrderId) {
+      const db = getDb()
+      await db.update(orderMappings)
+        .set({ fulfillmentOrderId: moveResult.movedFulfillmentOrderId })
+        .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
+    }
+
+    if (moveResult?.remainingFulfillmentOrderId) {
+      log.warn(
+        { shopifyOrderId, movedFulfillmentOrderId: moveResult.movedFulfillmentOrderId, remainingFulfillmentOrderId: moveResult.remainingFulfillmentOrderId },
+        'Fulfillment order split across locations — only part of the order moved to Zappr',
+      )
+    }
   } catch (err) {
     log.error({ err, shopifyOrderId }, 'Failed to move fulfillment order to Zappr location')
   }
@@ -171,6 +185,7 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
   // in the same order (avoids A-waits-for-B-waits-for-A deadlocks).
   const uniqueSkus = [...new Set(zapprItems.map((i) => i.zapprSku))].sort()
   const releases = []
+  let pushSucceeded = false
 
   try {
     for (const sku of uniqueSkus) {
@@ -229,6 +244,8 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
       })
       .where(eq(orderMappings.shopifyOrderId, shopifyOrderId))
 
+    pushSucceeded = true
+
     // Invalidate stock cache for all pushed SKUs
     await Promise.all(items.map((i) => invalidateStock(i.zapprSku)))
 
@@ -241,15 +258,24 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
     )
 
     log.info({ shopifyOrderId, zapprOrderId, slot }, 'Order pushed to Zappr')
-
-    await syncShopifyZapprSideEffects({
-      shopifyOrderId,
-      fulfillmentOrderId: fo.id,
-      orderGid: shopifyGid,
-      items,
-      adapter,
-    })
   } finally {
     await Promise.all(releases.map((release) => release()))
+  }
+
+  // Runs after SKU locks are released — this is cosmetic Shopify-admin work
+  // (fulfillment routing, tagging, inventory display) and must not hold up
+  // a concurrent order for the same SKU waiting on the lock.
+  if (pushSucceeded) {
+    try {
+      await syncShopifyZapprSideEffects({
+        shopifyOrderId,
+        fulfillmentOrderId: fo.id,
+        orderGid: shopifyGid,
+        items,
+        adapter,
+      })
+    } catch (err) {
+      log.error({ err, shopifyOrderId }, 'Zappr Shopify side effects failed — push itself already succeeded')
+    }
   }
 }
