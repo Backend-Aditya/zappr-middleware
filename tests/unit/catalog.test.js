@@ -66,4 +66,36 @@ describe('scanEligibleProducts', () => {
     expect(tracked.map((t) => t.sku)).toEqual(['SKU-1', 'SKU-3'])
     expect(count).toBe(2)
   })
+
+  it('skips eligible variants with missing sku or inventoryItem.id', async () => {
+    mockGraphql
+      .mockResolvedValueOnce({
+        products: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [
+            {
+              id: 'gid://shopify/Product/1',
+              metafield: { value: 'false' },
+              variants: {
+                nodes: [
+                  { id: 'gid://shopify/ProductVariant/1', sku: 'SKU-VALID', inventoryItem: { id: 'gid://shopify/InventoryItem/1' }, metafield: { value: 'true' } },
+                  { id: 'gid://shopify/ProductVariant/2', sku: '', inventoryItem: { id: 'gid://shopify/InventoryItem/2' }, metafield: { value: 'true' } },
+                  { id: 'gid://shopify/ProductVariant/3', sku: 'SKU-NO-INVENTORY', inventoryItem: null, metafield: { value: 'true' } },
+                  { id: 'gid://shopify/ProductVariant/4', sku: 'SKU-NO-INVENTORY-ID', inventoryItem: { id: null }, metafield: { value: 'true' } },
+                ],
+              },
+            },
+          ],
+        },
+      })
+
+    const count = await scanEligibleProducts()
+
+    expect(mockGraphql).toHaveBeenCalledTimes(1)
+    expect(mockGraphql).toHaveBeenNthCalledWith(1, expect.any(String), { cursor: null })
+
+    // Only SKU-VALID should be tracked; the other three are eligible but lack sku or inventoryItem.id
+    expect(tracked.map((t) => t.sku)).toEqual(['SKU-VALID'])
+    expect(count).toBe(1)
+  })
 })
