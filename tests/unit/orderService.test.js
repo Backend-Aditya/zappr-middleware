@@ -31,8 +31,24 @@ vi.mock('../../src/cache/redis.js', () => ({
   getRedis: () => fakeRedis,
 }))
 
-vi.mock('../../src/shopify/fulfillment.js', () => ({
-  getFulfillmentOrders: vi.fn(),
+const shopifySideEffects = { moved: [], tagged: [], inventorySet: [] }
+vi.mock('../../src/shopify/fulfillment.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    getFulfillmentOrders: vi.fn(),
+    moveFulfillmentOrder: vi.fn(async (opts) => { shopifySideEffects.moved.push(opts) }),
+  }
+})
+vi.mock('../../src/shopify/orders.js', () => ({
+  addOrderTags: vi.fn(async (opts) => { shopifySideEffects.tagged.push(opts) }),
+}))
+vi.mock('../../src/shopify/inventory.js', () => ({
+  setInventoryQuantity: vi.fn(async (opts) => { shopifySideEffects.inventorySet.push(opts) }),
+}))
+vi.mock('../../src/services/zapprInventorySyncService.js', () => ({
+  trackEligibleSku: vi.fn(async () => {}),
+  recordSyncedQuantity: vi.fn(async () => {}),
 }))
 
 vi.mock('../../src/services/availabilityService.js', () => ({
@@ -81,7 +97,7 @@ function fulfillmentOrderFixture(shopifyOrderId, sku, quantity) {
             nodes: [{
               sku,
               remainingQuantity: quantity,
-              variant: { id: 'gid://shopify/ProductVariant/1', price: '1.00', metafield: { value: 'true' } },
+              variant: { id: 'gid://shopify/ProductVariant/1', price: '1.00', inventoryItem: { id: `gid://shopify/InventoryItem/${sku}` }, metafield: { value: 'true' } },
             }],
           },
         }],
@@ -213,5 +229,64 @@ describe('pushOrderToZappr — EasyEcom stock rejection at createOrder time', ()
 
     await expect(pushOrderToZappr({ shopifyOrderId: '2002' }, adapter)).rejects.toThrow(/timeout/)
     expect(dbState.updates).toHaveLength(0)
+  })
+})
+
+describe('pushOrderToZappr — Shopify side effects on successful push', () => {
+  it('moves the fulfillment order, tags the order, and syncs inventory for each SKU', async () => {
+    shopifySideEffects.moved.length = 0
+    shopifySideEffects.tagged.length = 0
+    shopifySideEffects.inventorySet.length = 0
+
+    process.env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
+
+    getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4001', 'SKU-6', 1))
+
+    const adapter = makeAdapter({
+      stockBySku: { 'SKU-6': { available: true, quantity: 10 } },
+      createOrderImpl: async () => ({ zapprOrderId: 'ref', estimatedDelivery: null, easyEcomOrderId: '1', invoiceId: '1' }),
+    })
+
+    await pushOrderToZappr({ shopifyOrderId: '4001' }, adapter)
+
+    expect(shopifySideEffects.moved).toHaveLength(1)
+    expect(shopifySideEffects.moved[0].locationId).toBe('gid://shopify/Location/999')
+    expect(shopifySideEffects.tagged).toHaveLength(1)
+    expect(shopifySideEffects.tagged[0].tags).toEqual(['zappr-fulfillment'])
+    expect(shopifySideEffects.inventorySet).toHaveLength(1)
+    expect(shopifySideEffects.inventorySet[0].quantity).toBe(10)
+
+    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
+  })
+
+  it('does nothing when ZAPPR_SHOPIFY_LOCATION_ID is unset', async () => {
+    shopifySideEffects.moved.length = 0
+    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
+
+    getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4002', 'SKU-7', 1))
+    const adapter = makeAdapter({
+      stockBySku: { 'SKU-7': { available: true, quantity: 5 } },
+      createOrderImpl: async () => ({ zapprOrderId: 'ref', estimatedDelivery: null, easyEcomOrderId: '1', invoiceId: '1' }),
+    })
+
+    await pushOrderToZappr({ shopifyOrderId: '4002' }, adapter)
+
+    expect(shopifySideEffects.moved).toHaveLength(0)
+  })
+
+  it('does not throw when a Shopify side-effect call fails', async () => {
+    const { moveFulfillmentOrder } = await import('../../src/shopify/fulfillment.js')
+    moveFulfillmentOrder.mockRejectedValueOnce(new Error('Shopify is down'))
+    process.env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
+
+    getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4003', 'SKU-8', 1))
+    const adapter = makeAdapter({
+      stockBySku: { 'SKU-8': { available: true, quantity: 5 } },
+      createOrderImpl: async () => ({ zapprOrderId: 'ref', estimatedDelivery: null, easyEcomOrderId: '1', invoiceId: '1' }),
+    })
+
+    await expect(pushOrderToZappr({ shopifyOrderId: '4003' }, adapter)).resolves.toBeUndefined()
+
+    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
   })
 })

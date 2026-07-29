@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { getDb } from '../db/postgres/connection.js'
 import { orderMappings } from '../db/postgres/schema.js'
-import { getFulfillmentOrders } from '../shopify/fulfillment.js'
+import { getFulfillmentOrders, moveFulfillmentOrder } from '../shopify/fulfillment.js'
 import { checkAvailability } from './availabilityService.js'
 import { computeSurcharge } from './surchargeService.js'
 import { invalidateStock } from '../cache/stockCache.js'
@@ -9,6 +9,9 @@ import { trackingPollQueue } from '../queue/queues.js'
 import { ORDER_STATUS, AVAILABILITY_REASON } from '../config/constants.js'
 import { acquireLock } from '../utils/lock.js'
 import { ZapprApiError } from '../errors.js'
+import { addOrderTags } from '../shopify/orders.js'
+import { setInventoryQuantity } from '../shopify/inventory.js'
+import { trackEligibleSku, recordSyncedQuantity } from './zapprInventorySyncService.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('order-service')
@@ -30,6 +33,60 @@ const STOCK_REJECTION_PATTERN = /stock|quantity|insufficient|unavailable/i
 
 function isStockRejection(err) {
   return err instanceof ZapprApiError && STOCK_REJECTION_PATTERN.test(err.message)
+}
+
+/**
+ * Route a successfully-pushed order's fulfillment to the Zappr-managed
+ * Shopify location, tag it, and sync Shopify's inventory display for each
+ * SKU sold. Every step is independently wrapped — a failure here must never
+ * roll back or fail the already-successful Zappr push, only degrade Shopify
+ * admin visibility.
+ * @param {{ shopifyOrderId: string, fulfillmentOrderId: string, orderGid: string, items: Array<{ zapprSku: string, quantity: number, variantId: string, shopifyInventoryItemId: string | null }>, adapter: import('../zappr/adapter.js').ZapprAdapter }} opts
+ * @returns {Promise<void>}
+ */
+async function syncShopifyZapprSideEffects({ shopifyOrderId, fulfillmentOrderId, orderGid, items, adapter }) {
+  // Read directly from process.env (not the parsed `env` config object) —
+  // env-core snapshots process.env at first import, which would make this
+  // check permanently blind to the value in long-lived processes/tests that
+  // set it after startup.
+  const zapprLocationId = process.env.ZAPPR_SHOPIFY_LOCATION_ID
+  if (!zapprLocationId) return
+
+  try {
+    await moveFulfillmentOrder({ fulfillmentOrderId, locationId: zapprLocationId })
+  } catch (err) {
+    log.error({ err, shopifyOrderId }, 'Failed to move fulfillment order to Zappr location')
+  }
+
+  try {
+    await addOrderTags({ orderId: orderGid, tags: ['zappr-fulfillment'] })
+  } catch (err) {
+    log.error({ err, shopifyOrderId }, 'Failed to tag order as zappr-fulfillment')
+  }
+
+  for (const item of items) {
+    if (!item.shopifyInventoryItemId) continue
+
+    try {
+      await trackEligibleSku({
+        sku: item.zapprSku,
+        shopifyVariantId: item.variantId,
+        shopifyInventoryItemId: item.shopifyInventoryItemId,
+      })
+
+      const stock = await adapter.checkStock({ zapprSku: item.zapprSku, quantity: item.quantity })
+
+      await setInventoryQuantity({
+        inventoryItemId: item.shopifyInventoryItemId,
+        locationId: zapprLocationId,
+        quantity: stock.quantity,
+      })
+
+      await recordSyncedQuantity(item.zapprSku, stock.quantity)
+    } catch (err) {
+      log.error({ err, shopifyOrderId, sku: item.zapprSku }, 'Failed to sync Shopify inventory for SKU')
+    }
+  }
 }
 
 /**
@@ -65,6 +122,7 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
     quantity: li.remainingQuantity,
     variantId: li.variant?.id,
     price: li.variant?.price,
+    shopifyInventoryItemId: li.variant?.inventoryItem?.id ?? null,
     // Variant metafield wins; falls back to the product-level flag
     zapprEligible: (li.variant?.metafield?.value ?? li.variant?.product?.metafield?.value) === 'true',
   }))
@@ -187,6 +245,14 @@ export async function pushOrderToZappr({ shopifyOrderId, shopifyOrderName }, ada
     )
 
     log.info({ shopifyOrderId, zapprOrderId, slot }, 'Order pushed to Zappr')
+
+    await syncShopifyZapprSideEffects({
+      shopifyOrderId,
+      fulfillmentOrderId: fo.id,
+      orderGid: shopifyGid,
+      items,
+      adapter,
+    })
   } finally {
     await Promise.all(releases.map((release) => release()))
   }
