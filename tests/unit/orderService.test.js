@@ -50,6 +50,9 @@ vi.mock('../../src/services/zapprInventorySyncService.js', () => ({
   trackEligibleSku: vi.fn(async () => {}),
   recordSyncedQuantity: vi.fn(async () => {}),
 }))
+vi.mock('../../src/config/env.js', () => ({
+  env: {},
+}))
 
 vi.mock('../../src/services/availabilityService.js', () => ({
   // Pre-push availability re-check (pincode/eligibility) always passes here —
@@ -84,6 +87,7 @@ vi.mock('../../src/db/postgres/connection.js', () => ({
 }))
 
 const { getFulfillmentOrders } = await import('../../src/shopify/fulfillment.js')
+const { env } = await import('../../src/config/env.js')
 const { pushOrderToZappr } = await import('../../src/services/orderService.js')
 
 function fulfillmentOrderFixture(shopifyOrderId, sku, quantity) {
@@ -238,7 +242,7 @@ describe('pushOrderToZappr — Shopify side effects on successful push', () => {
     shopifySideEffects.tagged.length = 0
     shopifySideEffects.inventorySet.length = 0
 
-    process.env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
+    env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
 
     getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4001', 'SKU-6', 1))
 
@@ -256,12 +260,12 @@ describe('pushOrderToZappr — Shopify side effects on successful push', () => {
     expect(shopifySideEffects.inventorySet).toHaveLength(1)
     expect(shopifySideEffects.inventorySet[0].quantity).toBe(10)
 
-    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
+    delete env.ZAPPR_SHOPIFY_LOCATION_ID
   })
 
   it('does nothing when ZAPPR_SHOPIFY_LOCATION_ID is unset', async () => {
     shopifySideEffects.moved.length = 0
-    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
+    delete env.ZAPPR_SHOPIFY_LOCATION_ID
 
     getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4002', 'SKU-7', 1))
     const adapter = makeAdapter({
@@ -277,7 +281,7 @@ describe('pushOrderToZappr — Shopify side effects on successful push', () => {
   it('does not throw when a Shopify side-effect call fails', async () => {
     const { moveFulfillmentOrder } = await import('../../src/shopify/fulfillment.js')
     moveFulfillmentOrder.mockRejectedValueOnce(new Error('Shopify is down'))
-    process.env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
+    env.ZAPPR_SHOPIFY_LOCATION_ID = 'gid://shopify/Location/999'
 
     getFulfillmentOrders.mockResolvedValue(fulfillmentOrderFixture('4003', 'SKU-8', 1))
     const adapter = makeAdapter({
@@ -287,6 +291,6 @@ describe('pushOrderToZappr — Shopify side effects on successful push', () => {
 
     await expect(pushOrderToZappr({ shopifyOrderId: '4003' }, adapter)).resolves.toBeUndefined()
 
-    delete process.env.ZAPPR_SHOPIFY_LOCATION_ID
+    delete env.ZAPPR_SHOPIFY_LOCATION_ID
   })
 })

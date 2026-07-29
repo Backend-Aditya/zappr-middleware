@@ -12,6 +12,7 @@ import { ZapprApiError } from '../errors.js'
 import { addOrderTags } from '../shopify/orders.js'
 import { setInventoryQuantity } from '../shopify/inventory.js'
 import { trackEligibleSku, recordSyncedQuantity } from './zapprInventorySyncService.js'
+import { env } from '../config/env.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('order-service')
@@ -45,15 +46,10 @@ function isStockRejection(err) {
  * @returns {Promise<void>}
  */
 async function syncShopifyZapprSideEffects({ shopifyOrderId, fulfillmentOrderId, orderGid, items, adapter }) {
-  // Read directly from process.env (not the parsed `env` config object) —
-  // env-core snapshots process.env at first import, which would make this
-  // check permanently blind to the value in long-lived processes/tests that
-  // set it after startup.
-  const zapprLocationId = process.env.ZAPPR_SHOPIFY_LOCATION_ID
-  if (!zapprLocationId) return
+  if (!env.ZAPPR_SHOPIFY_LOCATION_ID) return
 
   try {
-    await moveFulfillmentOrder({ fulfillmentOrderId, locationId: zapprLocationId })
+    await moveFulfillmentOrder({ fulfillmentOrderId, locationId: env.ZAPPR_SHOPIFY_LOCATION_ID })
   } catch (err) {
     log.error({ err, shopifyOrderId }, 'Failed to move fulfillment order to Zappr location')
   }
@@ -78,7 +74,7 @@ async function syncShopifyZapprSideEffects({ shopifyOrderId, fulfillmentOrderId,
 
       await setInventoryQuantity({
         inventoryItemId: item.shopifyInventoryItemId,
-        locationId: zapprLocationId,
+        locationId: env.ZAPPR_SHOPIFY_LOCATION_ID,
         quantity: stock.quantity,
       })
 
