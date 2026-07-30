@@ -21,7 +21,7 @@ const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID
 const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET
 const PORT = 3456
 const REDIRECT_URI = `http://localhost:${PORT}/callback`
-const SCOPES = 'read_orders,read_products,read_inventory'
+const SCOPES = 'read_orders,read_products,read_inventory,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_inventory,read_locations'
 
 const authUrl
   = `https://${STORE}/admin/oauth/authorize`
