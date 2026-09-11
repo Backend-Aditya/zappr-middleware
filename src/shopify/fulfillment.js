@@ -49,6 +49,20 @@ const UPDATE_TRACKING = /* GraphQL */ `
   }
 `
 
+const GET_ORDER_BY_FULFILLMENT_ORDER = /* GraphQL */ `
+  query GetOrderByFulfillmentOrder($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id
+      status
+      order {
+        id
+        name
+        cancelledAt
+      }
+    }
+  }
+`
+
 const MOVE_FULFILLMENT_ORDER = /* GraphQL */ `
   mutation FulfillmentOrderMove($id: ID!, $newLocationId: ID!) {
     fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {
@@ -115,6 +129,27 @@ export async function updateFulfillmentTracking({ fulfillmentId, trackingNumber,
   if (userErrors?.length) {
     log.error({ userErrors }, 'FulfillmentTrackingInfoUpdate userErrors')
     throw new Error(`Tracking update failed: ${userErrors.map((e) => e.message).join(', ')}`)
+  }
+}
+
+/**
+ * Resolve the parent order for a fulfillment order — used by the
+ * fulfillment-order-moved webhook, which only carries the fulfillment order
+ * id, not the order id.
+ * @param {string} fulfillmentOrderGid - gid://shopify/FulfillmentOrder/123
+ * @returns {Promise<{ shopifyOrderId: string, shopifyOrderName: string, cancelledAt: string | null, fulfillmentOrderStatus: string } | null>}
+ */
+export async function getOrderByFulfillmentOrder(fulfillmentOrderGid) {
+  const data = await shopifyGraphql(GET_ORDER_BY_FULFILLMENT_ORDER, { id: fulfillmentOrderGid })
+  const fo = data.fulfillmentOrder
+
+  if (!fo?.order) return null
+
+  return {
+    shopifyOrderId: fo.order.id.replace('gid://shopify/Order/', ''),
+    shopifyOrderName: fo.order.name,
+    cancelledAt: fo.order.cancelledAt,
+    fulfillmentOrderStatus: fo.status,
   }
 }
 

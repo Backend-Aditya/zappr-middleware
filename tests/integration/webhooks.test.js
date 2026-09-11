@@ -20,6 +20,10 @@ vi.mock('../../src/queue/queues.js', () => ({
   },
 }))
 
+vi.mock('../../src/utils/lock.js', () => ({
+  acquireLock: vi.fn().mockResolvedValue(vi.fn().mockResolvedValue(undefined)),
+}))
+
 const { orderPushQueue } = await import('../../src/queue/queues.js')
 
 function makeInsertChain(returning) {

@@ -29,7 +29,7 @@ async function getToken() {
 
 async function graphql(token, query, variables = {}) {
   const res = await ky.post(
-    `https://${STORE}/admin/api/2025-01/graphql.json`,
+    `https://${STORE}/admin/api/2026-04/graphql.json`,
     {
       headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
       json: { query, variables },
@@ -39,21 +39,18 @@ async function graphql(token, query, variables = {}) {
   return res.data
 }
 
-async function registerWebhook(token) {
+async function registerWebhook(token, topic, path) {
   const data = await graphql(token, `
-    mutation {
+    mutation RegisterWebhook($topic: WebhookSubscriptionTopic!, $callbackUrl: URL!) {
       webhookSubscriptionCreate(
-        topic: ORDERS_PAID
-        webhookSubscription: {
-          format: JSON
-          callbackUrl: "${NGROK_URL}/webhooks/orders-paid"
-        }
+        topic: $topic
+        webhookSubscription: { format: JSON, callbackUrl: $callbackUrl }
       ) {
         webhookSubscription { id topic endpoint { __typename ... on WebhookHttpEndpoint { callbackUrl } } }
         userErrors { field message }
       }
     }
-  `)
+  `, { topic, callbackUrl: `${NGROK_URL}${path}` })
   const { userErrors, webhookSubscription } = data.webhookSubscriptionCreate
   if (userErrors?.length) throw new Error(userErrors.map(e => e.message).join(', '))
   return {
@@ -73,6 +70,12 @@ async function listWebhooks(token) {
   }))
 }
 
+const WEBHOOK_TOPICS = [
+  { topic: 'ORDERS_PAID', path: '/webhooks/orders-paid' },
+  { topic: 'ORDERS_CANCELLED', path: '/webhooks/orders-cancelled' },
+  { topic: 'FULFILLMENT_ORDERS_MOVED', path: '/webhooks/fulfillment-order-moved' },
+]
+
 async function main() {
   console.log(`Setting up zappr-middleware for ${STORE}...`)
   console.log(`Ngrok URL: ${NGROK_URL}\n`)
@@ -82,19 +85,22 @@ async function main() {
 
   // Check existing webhooks
   const existing = await listWebhooks(token)
-  const alreadyExists = existing.find((w) => w.topic === 'ORDERS_PAID')
 
-  if (alreadyExists) {
-    console.log(`✓ orders/paid webhook already registered → ${alreadyExists.address}`)
-    if (!alreadyExists.address.includes(NGROK_URL)) {
-      console.log(`  ⚠ URL mismatch — delete old webhook ID ${alreadyExists.id} first:`)
-      console.log(`  curl -X DELETE https://${STORE}/admin/api/2025-01/webhooks/${alreadyExists.id}.json -H "X-Shopify-Access-Token: ${token}"`)
+  for (const { topic, path } of WEBHOOK_TOPICS) {
+    const alreadyExists = existing.find((w) => w.topic === topic)
+
+    if (alreadyExists) {
+      console.log(`✓ ${topic} webhook already registered → ${alreadyExists.address}`)
+      if (!alreadyExists.address.includes(NGROK_URL)) {
+        console.log(`  ⚠ URL mismatch — delete old webhook ID ${alreadyExists.id} first:`)
+        console.log(`  curl -X DELETE https://${STORE}/admin/api/2026-04/webhooks/${alreadyExists.id}.json -H "X-Shopify-Access-Token: ${token}"`)
+      }
+    } else {
+      const webhook = await registerWebhook(token, topic, path)
+      console.log(`✓ Webhook registered (ID: ${webhook.id})`)
+      console.log(`  Topic:   ${webhook.topic}`)
+      console.log(`  Address: ${webhook.address}`)
     }
-  } else {
-    const webhook = await registerWebhook(token)
-    console.log(`✓ Webhook registered (ID: ${webhook.id})`)
-    console.log(`  Topic:   ${webhook.topic}`)
-    console.log(`  Address: ${webhook.address}`)
   }
 
   console.log('\n── Next steps ──────────────────────────────────────────')

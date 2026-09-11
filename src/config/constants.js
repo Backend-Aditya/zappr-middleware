@@ -45,7 +45,7 @@ export const CACHE_KEYS = /** @type {const} */ ({
 })
 
 export const SHOPIFY_CARRIER_NAME = 'Zappr Express'
-export const SHOPIFY_API_VERSION = '2025-01'
+export const SHOPIFY_API_VERSION = '2026-04'
 
 // EasyEcom (Zappr's fulfillment provider) has no pincode-serviceability API —
 // this static allowlist was supplied directly by the Zappr team.

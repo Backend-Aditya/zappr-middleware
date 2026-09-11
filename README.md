@@ -85,6 +85,8 @@ npm start             # PM2 cluster mode
 | `GET` | `/apps/zappr/check` | Shopify Proxy HMAC | Check Zappr availability for PDP |
 | `POST` | `/carrier` | Shopify Webhook HMAC | Carrier callback — returns Zappr rate |
 | `POST` | `/webhooks/orders-paid` | Shopify Webhook HMAC | Order paid hook → queues Zappr push |
+| `POST` | `/webhooks/orders-cancelled` | Shopify Webhook HMAC | Order cancelled hook → cancels at Zappr if already pushed |
+| `POST` | `/webhooks/fulfillment-order-moved` | Shopify Webhook HMAC | Fulfillment order moved to Zappr location (manual admin move) → queues Zappr push |
 | `POST` | `/webhooks/zappr/tracking` | — | Zappr tracking push |
 | `GET` | `/health` | none | Liveness probe |
 | `GET` | `/ready` | none | Readiness probe (checks DB + Redis) |

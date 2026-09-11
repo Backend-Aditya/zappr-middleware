@@ -15,7 +15,7 @@ if (!STORE || !TOKEN) {
 
 const query = '{ locations(first: 20) { nodes { id name isActive } } }'
 
-const res = await ky.post(`https://${STORE}/admin/api/2025-01/graphql.json`, {
+const res = await ky.post(`https://${STORE}/admin/api/2026-04/graphql.json`, {
   headers: { 'X-Shopify-Access-Token': TOKEN, 'Content-Type': 'application/json' },
   json: { query },
 }).json()
